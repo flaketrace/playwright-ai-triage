@@ -1,8 +1,10 @@
 import type { FailurePayload } from './types.js';
 
 /**
- * Prompt v002. The live prompt ships in source by necessity (self-hosted tool);
- * iteration history and eval results live in the private prompt-lab.
+ * Classifier prompt. The live prompt ships in source by necessity (self-hosted
+ * tool); iteration history and eval results live in the private prompt-lab.
+ * PROMPT_VERSION below is the load-bearing version string; the dated blocks are
+ * changelog.
  *
  * v002 (first dogfood round): deterministic element-absence was systematically
  * misclassified as SELECTOR_DRIFT when the true cause was a feature flag /
@@ -10,8 +12,15 @@ import type { FailurePayload } from './types.js';
  * config-disabled surfaces, the ambiguity rule gains the absence hard case,
  * drift requires positive rename evidence for high confidence, and one
  * synthetic example is replaced with the real (sanitized) baseline case.
+ *
+ * v003 (16-fixture eval round): the model read an element's mere ABSENCE from
+ * the DOM snapshot as positive rename evidence (calling SELECTOR_DRIFT on a bare
+ * page). Rule 3 makes absence-is-not-evidence explicit. A broader confidence-cap
+ * rewrite was tried in the same round and REVERTED — it over-hedged (zero-evidence
+ * timeouts collapsed to UNCLASSIFIED) and destabilised previously-correct cases
+ * without lowering the genuinely-overconfident ones, so v003 keeps rule 3 alone.
  */
-export const PROMPT_VERSION = 'v002';
+export const PROMPT_VERSION = 'v003';
 
 export const SYSTEM_PROMPT = `You are a senior QA engineer triaging Playwright end-to-end test failures. For each failure payload you receive, assign exactly one class.
 
@@ -29,6 +38,7 @@ export const SYSTEM_PROMPT = `You are a senior QA engineer triaging Playwright e
 
 - Ambiguity rule 1: "TimeoutError waiting for locator" is a hard case — decide between SELECTOR_DRIFT and FLAKY from the evidence (DOM snapshot, retry history, diff summary), never by default.
 - Ambiguity rule 2: an element that is deterministically absent (never found, every retry, every project/viewport) with no app error is AT LEAST as likely a disabled feature flag or environment/data configuration as a renamed selector. SELECTOR_DRIFT claims a UI change happened — only assert it above 0.5 confidence when the payload shows positive rename evidence (a diff summary touching that component, or a DOM snippet with a renamed sibling). Without such evidence, prefer ENV_ISSUE with a hedged "why", or keep confidence at or below 0.5. Test titles and routes are hints: sections named after opt-in features (recognition, galleries, welcome/onboarding flows, boards, calendars) are commonly flag-gated per environment.
+- Ambiguity rule 3: an element's ABSENCE is not positive evidence for any class. A DOM snapshot that merely lacks the target element (a bare page, or a page whose visible elements are unrelated to the target) is consistent with a real bug that failed to render it, a disabled flag, and a load failure just as much as a renamed selector — it is the ambiguous case, not a drift signal. Positive rename evidence means the snapshot shows a DIFFERENT element serving the same role/purpose (same button text, same heading, under a new name or testid), or a diff touches that component. Absent that, do not read "the element isn't in the snapshot" as SELECTOR_DRIFT above 0.5.
 - retryThenPassed and heuristicPrior are evidence, not verdicts. Weigh them; overrule them when the payload says otherwise.
 - "why" must be one sentence citing specific evidence from the payload (quote the fragment that convinced you).
 - suggestedFix: for SELECTOR_DRIFT, a concrete locator suggestion from the DOM snapshot when one is visible; for config-type ENV_ISSUE, name the environment variable or flag to check when the payload lets you infer one. Omit it otherwise.
