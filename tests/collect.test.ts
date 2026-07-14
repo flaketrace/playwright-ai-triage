@@ -109,6 +109,50 @@ describe('collectFailure', () => {
     expect((p.domSnippet ?? '').length).toBeLessThanOrEqual(1500);
   });
 
+  it('reads the DOM snippet from the current Playwright error-context format (fenced yaml aria block)', () => {
+    // Playwright >= ~1.53 embeds the aria snapshot as a ```yaml block instead of
+    // a `# Page snapshot` section.
+    const md = [
+      '# Error details',
+      '',
+      '```',
+      'Error: locator not found',
+      '```',
+      '',
+      '```yaml',
+      '- main:',
+      '  - heading "Search" [level=1]',
+      '  - button "Buy"',
+      '```',
+      '',
+      '# Test source',
+      '```ts',
+      'await expect(x).toBeVisible();',
+      '```',
+    ].join('\n');
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    expect(p.domSnippet).toContain('heading "Search"');
+    expect(p.domSnippet).toContain('button "Buy"');
+    expect(p.domSnippet).not.toContain('Error: locator not found'); // not the error block
+    expect(p.domSnippet).not.toContain('toBeVisible'); // not the test-source block
+  });
+
+  it('strips ANSI escape codes from error text and stack (real Playwright output is colourised)', () => {
+    const ESC = String.fromCharCode(27);
+    const colourised = `Error: ${ESC}[2mexpect(${ESC}[22m${ESC}[31mlocator${ESC}[39m${ESC}[2m).${ESC}[22mtoBeVisible failed`;
+    const p = collectFailure(
+      fakeTest(),
+      fakeResult({ errors: [{ message: colourised, stack: `${colourised}\n    at a.spec.ts:1` }] }),
+      opts,
+    );
+    expect(p.errorMessage).not.toContain(ESC);
+    expect(p.errorMessage).toBe('Error: expect(locator).toBeVisible failed');
+    expect(p.stack).not.toContain(ESC);
+  });
+
   it('omits domSnippet when attachment is absent or includeDom is off', () => {
     expect(
       collectFailure(fakeTest(), fakeResult(), { ...opts, includeDom: true }).domSnippet,
@@ -137,6 +181,24 @@ describe('collectFailure', () => {
     const p = collectFailure(test, fakeResult({ steps }), opts);
     expect(p.failingStep).not.toContain('eyJhbGciOiJIUzI1NiJ9abcdef');
     expect(p.title).not.toContain('sk-ant-api03-abcdefgh12345678');
+  });
+
+  it('still redacts a secret whose token is interleaved with ANSI codes (strip runs before redact)', () => {
+    const ESC = String.fromCharCode(27);
+    const p = collectFailure(
+      fakeTest(),
+      fakeResult({
+        errors: [
+          {
+            message: `auth failed for sk-ant-api03-${ESC}[2mabcdefgh12345678${ESC}[22m`,
+            stack: '',
+          },
+        ],
+      }),
+      opts,
+    );
+    expect(p.errorMessage).not.toContain('sk-ant-api03-abcdefgh12345678');
+    expect(p.errorMessage).not.toContain('sk-ant-api03');
   });
 
   it('redacts secrets in error text', () => {
