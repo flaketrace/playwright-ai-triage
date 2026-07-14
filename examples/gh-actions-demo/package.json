@@ -1,0 +1,12 @@
+{
+  "name": "gh-actions-demo",
+  "private": true,
+  "description": "Deliberately failing Playwright suite demonstrating playwright-ai-triage (dryRun in CI).",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "playwright-ai-triage": "file:../.."
+  }
+}

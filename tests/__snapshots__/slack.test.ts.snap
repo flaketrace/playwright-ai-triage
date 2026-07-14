@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildSlackPayload > builds a Block Kit payload (golden) 1`] = `
+{
+  "blocks": [
+    {
+      "text": {
+        "emoji": true,
+        "text": "AI triage — 2 failure(s) triaged",
+        "type": "plain_text",
+      },
+      "type": "header",
+    },
+    {
+      "text": {
+        "text": "*🐞 REAL_BUG (1)*
+• *test a* — why a (80%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "text": {
+        "text": "*🎲 FLAKY (1)*
+• *test b* — why b (80%)",
+        "type": "mrkdwn",
+      },
+      "type": "section",
+    },
+    {
+      "type": "divider",
+    },
+    {
+      "elements": [
+        {
+          "text": "Triaged by <https://github.com/Jarroslav/playwright-ai-triage|playwright-ai-triage> · claude-haiku-4-5 · $0.0100",
+          "type": "mrkdwn",
+        },
+      ],
+      "type": "context",
+    },
+  ],
+}
+`;

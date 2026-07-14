@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # engines claims node >=18; dev tooling needs 22, so smoke-test the built
+      # artifact itself on the minimum supported runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - run: node -e "require('./dist/index.cjs')" && node -e "import('./dist/index.js')"
+
+  integration:
+    runs-on: ubuntu-latest
+    # the dry-run examples suite doubles as a live demo: it posts (and upserts)
+    # the triage comment on our own PRs — dogfooding the github output on every change
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm install
+        working-directory: examples/gh-actions-demo
+      - run: npx playwright install --with-deps chromium
+        working-directory: examples/gh-actions-demo
+      - name: Run the examples suite with dryRun (failures are the point)
+        working-directory: examples/gh-actions-demo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          npx playwright test > output.log 2>&1
+          status=$?
+          set -e
+          cat output.log
+          if [ "$status" -eq 0 ]; then
+            echo "expected the demo suite to fail"; exit 1
+          fi
+          grep -q "failure(s) triaged" output.log
+          grep -q "ENV_ISSUE" output.log
+          grep -q "FLAKY" output.log
+          grep -q "dry-run mode" output.log

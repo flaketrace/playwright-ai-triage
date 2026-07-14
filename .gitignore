@@ -1,0 +1,31 @@
+# dependencies / build output
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+examples/gh-actions-demo/output.log
+*.tsbuildinfo
+.eslintcache
+
+# local environment & OS noise
+.env*
+.DS_Store
+
+# internal development tooling — intentionally untracked in this repo
+.agentic/
+.agents/
+.ai-run/
+.claude/
+.cursor/
+.codex/
+.serena/
+CLAUDE.md
+AGENTS.md
+PATTERNS.md
+ARCHITECTURE.md
+SYNC_TO_WIKI.md
+docs/audits/
+docs/superpowers/
+.githooks/
+scripts/install-git-hooks.sh

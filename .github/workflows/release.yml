@@ -1,0 +1,41 @@
+name: Release
+
+# Changesets release flow. With pending changesets, a push to main opens/updates
+# the "Version Packages" PR; with none, `changeset publish` runs directly and
+# publishes any version not yet on npm. Publishing requires the NPM_TOKEN repo
+# secret — add it only AFTER the manual 0.0.1 name-reservation publish, so this
+# workflow can never race the first release. Provenance comes from CI OIDC.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  release:
+    if: github.repository == 'Jarroslav/playwright-ai-triage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          publish: npm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # changesets/action reads NPM_TOKEN (writes its own .npmrc); NODE_AUTH_TOKEN
+          # covers setup-node's registry auth path as well
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
