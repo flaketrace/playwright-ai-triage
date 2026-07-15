@@ -1,0 +1,11 @@
+{
+  "name": "tarball-smoke",
+  "private": true,
+  "description": "Smoke-tests the packed playwright-ai-triage tarball (not the source) with the bare-string reporter config.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

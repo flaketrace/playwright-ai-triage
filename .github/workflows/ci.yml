@@ -65,3 +65,39 @@ jobs:
           grep -q "ENV_ISSUE" output.log
           grep -q "FLAKY" output.log
           grep -q "dry-run mode" output.log
+
+  tarball-smoke:
+    runs-on: ubuntu-latest
+    # Installs the reporter from a freshly packed .tgz (not the file:../.. symlink
+    # the demo uses) into a project that has NO dependency on it — proving the
+    # published `files` surface resolves and the bare-string reporter config runs.
+    # No dryRun, no ANTHROPIC_API_KEY: exercises the graceful-degradation path.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the reporter
+        run: npm pack --pack-destination /tmp
+      - name: Install the packed tarball into the smoke project
+        working-directory: examples/tarball-smoke
+        run: npm install --no-save /tmp/playwright-ai-triage-*.tgz @playwright/test@^1.61.1
+      - name: Run the smoke suite (failure is expected, no API key)
+        working-directory: examples/tarball-smoke
+        run: |
+          set +e
+          npx playwright test > output.log 2>&1
+          status=$?
+          set -e
+          cat output.log
+          if [ "$status" -eq 0 ]; then
+            echo "expected the smoke suite to fail"; exit 1
+          fi
+          # bare-string reporter resolved from the packed artifact and ran, then
+          # degraded cleanly with no API key
+          grep -q "playwright-ai-triage" output.log
+          grep -q "not classified" output.log
+          grep -q "ANTHROPIC_API_KEY" output.log

@@ -5,6 +5,8 @@ coverage/
 test-results/
 playwright-report/
 examples/gh-actions-demo/output.log
+examples/tarball-smoke/output.log
+*.tgz
 *.tsbuildinfo
 .eslintcache
 
