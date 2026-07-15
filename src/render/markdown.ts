@@ -83,7 +83,7 @@ export function renderMarkdownSummary(classified: ClassifiedFailure[], ctx: Rend
   const unclassifiedSuffix = unclassified > 0 ? ` · ${unclassified} unclassified` : '';
   const shard = ctx.shard ? ` · shard ${ctx.shard.current}/${ctx.shard.total}` : '';
   const lines: string[] = [
-    `### 🧭 AI triage — ${triagedCount} failure(s) triaged${unclassifiedSuffix}${shard}`,
+    `### 🔍 AI triage — ${triagedCount} failure(s) triaged${unclassifiedSuffix}${shard}`,
   ];
   if (ctx.delta && ctx.delta.resolvedCount > 0) {
     lines.push('', `✅ **${ctx.delta.resolvedCount} failure(s) resolved since the last run.**`);
@@ -147,7 +147,7 @@ export function renderAllClearSummary(
       ? 'All previously reported failures resolved.'
       : `${resolvedCount} previously reported failure(s) resolved.`;
   return [
-    `### 🧭 AI triage — all clear ✅${shardSuffix}`,
+    `### 🔍 AI triage — all clear ✅${shardSuffix}`,
     '',
     resolved,
     '',
