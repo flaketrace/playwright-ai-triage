@@ -39,7 +39,10 @@ export interface Classification {
   why: string;
   /**
    * SELECTOR_DRIFT: concrete locator suggestion; config-type ENV_ISSUE: the
-   * environment variable / feature flag to check. Absent for other classes.
+   * environment variable / feature flag to check; REAL_BUG when diffSummary
+   * shows the diff confined to the test's own file/helper (prompt rule 5):
+   * name that file/helper and point at verifying its recent change against
+   * live behavior. Absent otherwise.
    */
   suggestedFix?: string;
 }
