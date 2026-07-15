@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`renderAllClearSummary > renders the all-clear state with a resolved count (golden) 1`] = `
-"### 🧭 AI triage — all clear ✅
+"### 🔍 AI triage — all clear ✅
 
 3 previously reported failure(s) resolved.
 
@@ -10,7 +10,7 @@ _Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-tr
 `;
 
 exports[`renderMarkdownSummary > groups by project when a project map is provided (golden) 1`] = `
-"### 🧭 AI triage — 2 failure(s) triaged
+"### 🔍 AI triage — 2 failure(s) triaged
 
 #### chromium
 
@@ -31,7 +31,7 @@ _Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-tr
 `;
 
 exports[`renderMarkdownSummary > renders delta labels: new gets full detail, persisting collapses to one line (golden) 1`] = `
-"### 🧭 AI triage — 2 failure(s) triaged
+"### 🔍 AI triage — 2 failure(s) triaged
 
 ✅ **2 failure(s) resolved since the last run.**
 
@@ -49,7 +49,7 @@ _Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-tr
 `;
 
 exports[`renderMarkdownSummary > renders the grouped summary (golden) 1`] = `
-"### 🧭 AI triage — 3 failure(s) triaged
+"### 🔍 AI triage — 3 failure(s) triaged
 
 **🐞 REAL_BUG (1)**
 
