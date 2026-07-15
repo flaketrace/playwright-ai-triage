@@ -21,7 +21,18 @@ const NETWORK_SIGNATURES = [
   /ENOTFOUND/,
   /ETIMEDOUT/,
   /EAI_AGAIN/,
+  /socket hang up/i,
+  /upstream connect error/i,
+  /disconnect\/reset before headers/i,
 ];
+
+// The suite's own transient-retry machinery is an explicit ENV signal: when the
+// test wrapped a status in TransientHttpError, exhausted a retryOnTransient budget,
+// or reported "HTTP 5xx/409 after N attempts", the authors already deemed that
+// status transient infrastructure — not a defect in the behavior under test. A bare
+// 5xx without that wrapper is left to the model (it could be the endpoint under test).
+const TRANSIENT_RETRY_WORDING =
+  /TransientHttpError|retryOnTransient|HTTP (5\d\d|409) after \d+ attempts/i;
 
 // Explicit credential-expiry wording (e.g. Azure DevOps: "The Personal Access Token
 // used has expired."). An expired credential is test-infrastructure state, never an
@@ -59,14 +70,30 @@ export function heuristicFor(
   const text = `${payload.errorMessage}\n${payload.stack}`;
 
   if (NETWORK_SIGNATURES.some((re) => re.test(text))) {
-    // A timeout wrapping a network error is not "purely network" — the model decides.
-    if (TIMEOUT_WORDING.test(text)) return { prior: 'ENV_ISSUE' };
+    // A timeout wrapping a network error — or a network phrase quoted inside an
+    // assertion (a test asserting on that text) — is not "purely network": defer to
+    // the model with an ENV prior instead of a local verdict.
+    if (TIMEOUT_WORDING.test(text) || ASSERTION_WORDING.test(text)) return { prior: 'ENV_ISSUE' };
     return {
       prior: 'ENV_ISSUE',
       verdict: {
         class: 'ENV_ISSUE',
         confidence: 0.95,
         why: 'pure network failure signature — classified locally without an API call',
+      },
+    };
+  }
+
+  // The suite's transient-retry wording is a script-decidable ENV signal (the test
+  // itself deemed the status transient). Exclude assertion wording: a test asserting
+  // ON a TransientHttpError/5xx response is talking about app content, not infra.
+  if (TRANSIENT_RETRY_WORDING.test(text) && !ASSERTION_WORDING.test(text)) {
+    return {
+      prior: 'ENV_ISSUE',
+      verdict: {
+        class: 'ENV_ISSUE',
+        confidence: 0.85,
+        why: 'the suite\'s own transient-retry helper already treated this status as transient infrastructure (TransientHttpError / retried "after N attempts") — classified locally without an API call',
       },
     };
   }

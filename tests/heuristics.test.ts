@@ -89,4 +89,46 @@ describe('heuristicFor', () => {
   it('plain assertion failure: no prior, no verdict', () => {
     expect(heuristicFor(payload('expect(received).toBe(expected)'))).toEqual({});
   });
+
+  it.each([
+    'TransientHttpError: Department catalog refresh failed: 500 Internal Server Error',
+    'Error: PUT app-config version-configurations/2026: HTTP 500 after 4 attempts',
+    'Error: GET billing-accounts/import: HTTP 409 after 4 attempts',
+    'failed inside retryOnTransientRequest after exhausting the budget',
+  ])('suite transient-retry wording "%s" => local ENV_ISSUE verdict', (msg) => {
+    const r = heuristicFor(payload(msg));
+    expect(r.prior).toBe('ENV_ISSUE');
+    expect(r.verdict).toMatchObject({ class: 'ENV_ISSUE', confidence: 0.85 });
+    expect(r.verdict?.why).toContain('transient');
+  });
+
+  it.each(['socket hang up', 'upstream connect error', 'disconnect/reset before headers'])(
+    'transport-drop signature "%s" => local ENV_ISSUE verdict',
+    (sig) => {
+      const r = heuristicFor(payload(`apiRequestContext.get: ${sig}`));
+      expect(r.prior).toBe('ENV_ISSUE');
+      expect(r.verdict).toMatchObject({ class: 'ENV_ISSUE', confidence: 0.95 });
+    },
+  );
+
+  it('a transport-drop phrase quoted inside an assertion reaches the model (prior only, no verdict)', () => {
+    const r = heuristicFor(
+      payload("expect(page.getByRole('alert')).toHaveText('upstream connect error')"),
+    );
+    expect(r.prior).toBe('ENV_ISSUE');
+    expect(r.verdict).toBeUndefined();
+  });
+
+  it('a 5xx the test ASSERTS on (assertion wording present) reaches the model, no verdict', () => {
+    const r = heuristicFor(
+      payload('expect(response.status()).toBe(200)\nReceived: 500 — TransientHttpError body'),
+    );
+    expect(r.verdict).toBeUndefined();
+  });
+
+  it('a bare 5xx without transient-retry wrapper is left to the model (no verdict)', () => {
+    expect(
+      heuristicFor(payload('Failed to create application: 500 Internal Server Error')),
+    ).toEqual({});
+  });
 });
