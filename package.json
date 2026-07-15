@@ -1,6 +1,6 @@
 {
   "name": "playwright-ai-triage",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Playwright reporter that classifies test failures with an LLM (real bug / flaky / selector drift / environment issue) and posts a readable summary to stdout, a GitHub PR comment, or Slack.",
   "keywords": [
     "playwright",
