@@ -29,7 +29,7 @@ import type { FailurePayload } from './types.js';
  * extends the absence rule to seeded/expected entities, and adds transport-drop
  * signals. Paired with a deterministic transient-retry heuristic in heuristics.ts.
  *
- * v005 (scheduled-banner-format dogfood round): not a misclassification —
+ * v005 (stale-test-assertion dogfood round): not a misclassification —
  * a deterministic assertion-content diff (expected a long-form date string,
  * received the app's actual short-form date) was correctly called REAL_BUG at
  * high confidence, but that verdict alone wasn't actionable. The real cause was
