@@ -1,7 +1,7 @@
 # Contributing
 
-Thanks for your interest! The project is in early development; issues and PRs are welcome once
-the first functional release lands.
+Thanks for your interest! Issues and PRs are welcome — check
+[docs/ROADMAP.md](docs/ROADMAP.md) for where the project is headed.
 
 ## Ground rules
 
