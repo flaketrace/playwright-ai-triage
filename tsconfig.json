@@ -14,5 +14,5 @@
     "declaration": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "eslint.config.js", "tsup.config.ts", "vitest.config.ts"]
+  "include": ["src", "tests", "eval", "eslint.config.js", "tsup.config.ts", "vitest.config.ts"]
 }
