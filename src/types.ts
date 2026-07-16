@@ -76,4 +76,12 @@ export interface AiTriageOptions {
    * annotations. The reporter never fails the build either way.
    */
   failSilently?: boolean;
+  /**
+   * opt-in: POST the run's triage results (payloads + classifications +
+   * fingerprints, JSON, schema `ai-triage-sink/v1`) to this URL after each run.
+   * Off unless set (or `AI_TRIAGE_SINK_URL` is in the env);
+   * `AI_TRIAGE_SINK_TOKEN` adds an `Authorization: Bearer` header. A sink
+   * failure warns and never affects the build. Skipped in `dryRun`.
+   */
+  sinkUrl?: string;
 }

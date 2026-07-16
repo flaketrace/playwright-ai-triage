@@ -75,6 +75,9 @@ describe('AiTriageReporter', () => {
     vi.stubEnv('GITHUB_REPOSITORY', '');
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GITHUB_REF', '');
+    // hermetic: a dev shell's real sink must never receive fixture envelopes
+    vi.stubEnv('AI_TRIAGE_SINK_URL', '');
+    vi.stubEnv('AI_TRIAGE_SINK_TOKEN', '');
   });
 
   afterEach(() => {
@@ -105,6 +108,84 @@ describe('AiTriageReporter', () => {
     const out = logs.join('\n');
     expect(out).toContain('t.spec.ts:1');
     expect(out).not.toContain('/repo/t.spec.ts');
+  });
+
+  it('POSTs the run to the sink when sinkUrl is set (keyed run)', async () => {
+    const fetchImpl = vi.fn(async (_url: string, _init?: { method?: string; body?: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    const reporter = new AiTriageReporter(
+      { sinkUrl: 'https://sink.example/ingest' },
+      { client: okClient(), fetchImpl },
+    );
+    await run(reporter, [[fakeTest('a'), failedResult()]]);
+    const call = fetchImpl.mock.calls.find((c) => c[0] === 'https://sink.example/ingest');
+    expect(call).toBeDefined();
+    expect(call?.[1]?.method).toBe('POST');
+    expect(JSON.parse(call?.[1]?.body ?? '{}')).toMatchObject({ schema: 'ai-triage-sink/v1' });
+  });
+
+  it('still POSTs to the sink on keyless runs', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const fetchImpl = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    const reporter = new AiTriageReporter(
+      { sinkUrl: 'https://sink.example/ingest' },
+      { client: okClient(), fetchImpl },
+    );
+    await run(reporter, [[fakeTest('a'), failedResult()]]);
+    expect(fetchImpl.mock.calls.some((c) => c[0] === 'https://sink.example/ingest')).toBe(true);
+  });
+
+  it('POSTs an empty-failures envelope on a green run (run presence is data)', async () => {
+    const fetchImpl = vi.fn(async (_url: string, _init?: { method?: string; body?: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    const reporter = new AiTriageReporter(
+      { sinkUrl: 'https://sink.example/ingest' },
+      { client: okClient(), fetchImpl },
+    );
+    await run(reporter, []);
+    const call = fetchImpl.mock.calls.find((c) => c[0] === 'https://sink.example/ingest');
+    expect(call).toBeDefined();
+    expect(JSON.parse(call?.[1]?.body ?? '{}')).toMatchObject({
+      schema: 'ai-triage-sink/v1',
+      summary: { failures: 0 },
+    });
+  });
+
+  it('skips the sink in dryRun', async () => {
+    const fetchImpl = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    const reporter = new AiTriageReporter(
+      { sinkUrl: 'https://sink.example/ingest', dryRun: true },
+      { client: okClient(), fetchImpl },
+    );
+    await run(reporter, [[fakeTest('a'), failedResult()]]);
+    expect(fetchImpl.mock.calls.some((c) => c[0] === 'https://sink.example/ingest')).toBe(false);
+  });
+
+  it('a failing sink warns and never affects the run', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('sink down');
+    });
+    const reporter = new AiTriageReporter(
+      { sinkUrl: 'https://sink.example/ingest' },
+      { client: okClient(), fetchImpl },
+    );
+    const returned = await run(reporter, [[fakeTest('a'), failedResult()]]);
+    expect(returned).toBeUndefined();
+    expect(warns.join('\n')).toMatch(/sink/i);
   });
 
   it('prints only a one-liner on zero failures', async () => {
