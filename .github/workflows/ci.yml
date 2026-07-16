@@ -9,6 +9,41 @@ permissions:
   contents: read
 
 jobs:
+  dco:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    # every PR commit must carry a Signed-off-by trailer (DCO 1.1 — see CONTRIBUTING.md);
+    # checked inline rather than via a third-party action to keep the supply chain minimal.
+    # github-actions[bot] commits (changesets "Version Packages" PRs) are release
+    # automation, not contributions, and are exempt.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by on every PR commit
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          commits=$(git rev-list --no-merges "$BASE".."$HEAD")
+          if [ -z "$commits" ]; then
+            echo "no non-merge commits in range — nothing to check"
+            exit 0
+          fi
+          missing=0
+          for sha in $commits; do
+            if [ "$(git log -1 --format='%ae' "$sha")" = "41898282+github-actions[bot]@users.noreply.github.com" ]; then
+              echo "skipping release-automation commit $(git log -1 --format='%h %s' "$sha")"
+              continue
+            fi
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
+              echo "::error::commit $sha has no Signed-off-by trailer — fix with 'git commit --amend -s' (or 'git rebase --signoff' for multiple commits)"
+              git log -1 --format='%h %s' "$sha"
+              missing=1
+            fi
+          done
+          exit $missing
+
   test:
     runs-on: ubuntu-latest
     steps:

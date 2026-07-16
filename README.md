@@ -96,3 +96,8 @@ comment to "all clear ✅". Your next scheduled full run re-validates everything
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Playwright is a trademark of Microsoft Corporation. This project is community-built and is not
+affiliated with or endorsed by Microsoft.
