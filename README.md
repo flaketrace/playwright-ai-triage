@@ -44,11 +44,24 @@ The full option surface (auto-detection covers everything else):
 | `maxFailures`  | `25`                | send at most this many failures to the API per run              |
 | `dryRun`       | `false`             | fixture classifications, no API call                            |
 | `failSilently` | `true`              | `false` also surfaces reporter errors as CI warning annotations |
+| `sinkUrl`      | unset               | opt-in: POST each run's triage results as JSON to your own URL  |
 
 Environment: `ANTHROPIC_API_KEY` (required for classification), `GITHUB_TOKEN` (automatic in
 GitHub Actions), `SLACK_WEBHOOK_URL` (enables the Slack output), `GIT_DIFF_SUMMARY` (optional
 opt-in: provide a diff summary to include as classification evidence; nothing diff-related is
-sent when unset).
+sent when unset), `AI_TRIAGE_SINK_URL` (same as `sinkUrl`; the option wins when both are set),
+`AI_TRIAGE_SINK_TOKEN` (optional `Authorization: Bearer` header for the sink — tokens are
+env-only and never belong in a config file).
+
+### HTTP sink (opt-in)
+
+When `sinkUrl` is set, the reporter POSTs one JSON document per run to that URL after
+classification: schema `ai-triage-sink/v1` with run metadata (shard, and repository / branch /
+commit / PR number when running in GitHub Actions), a per-class summary with the run's API
+cost, and every failure's payload, classification, and stable fingerprint. It fires on keyless
+runs too (statuses and fingerprints are still useful data), is skipped in `dryRun`, times out
+after 10 seconds, and a sink failure warns without ever affecting the build. Nothing is sent
+when `sinkUrl` is unset.
 
 The reporter never fails your build. No API key? It degrades to a plain failure summary. API
 down? Failures are reported as `UNCLASSIFIED`. Any internal error is logged as a warning and the
@@ -68,6 +81,9 @@ redacted error head for each earlier attempt that failed differently (so a timeo
 by 500s reads as what it is), the deterministic
 heuristic prior (when one exists), duration, and — only if you opt in — a redacted DOM snapshot
 (from Playwright's own error-context attachment) and whatever you place in `GIT_DIFF_SUMMARY`.
+
+Sent to your own endpoint only if you set `sinkUrl`: the same redacted payloads plus their
+classifications and fingerprints (see "HTTP sink" above). Nothing is sent when unset.
 
 Never sent anywhere: screenshots, videos, traces, your source code beyond the stack frames above.
 Media files are referenced by local path in the summary, never uploaded.
