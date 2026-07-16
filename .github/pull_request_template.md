@@ -14,4 +14,5 @@
 
 - [ ] Describes the real-world failure case that motivates the change (payload shape + expected
       class), so it can be evaluated — prompt changes are accepted on evidence, not intuition.
-      Maintainer runs the classification eval before merge.
+- [ ] `npm run eval:smoke` output included (bring your own `ANTHROPIC_API_KEY`; costs a
+      fraction of a cent). Maintainer additionally runs the full private eval before merge.

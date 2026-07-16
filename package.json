@@ -52,7 +52,8 @@
     "test": "vitest run",
     "gate": "npm run lint && npm run typecheck && npm run test && npm run build",
     "prepublishOnly": "npm run gate",
-    "release": "npm run build && changeset publish"
+    "release": "npm run build && changeset publish",
+    "eval:smoke": "tsx eval/run.ts"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"
@@ -65,6 +66,7 @@
     "eslint": "^9.39.5",
     "prettier": "^3.9.5",
     "tsup": "^8.5.1",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.63.0",
     "vitest": "^4.1.10"
