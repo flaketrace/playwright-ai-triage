@@ -1,5 +1,10 @@
 # playwright-ai-triage
 
+[![npm version](https://img.shields.io/npm/v/playwright-ai-triage)](https://www.npmjs.com/package/playwright-ai-triage)
+[![npm downloads](https://img.shields.io/npm/dm/playwright-ai-triage)](https://www.npmjs.com/package/playwright-ai-triage)
+[![CI](https://github.com/Jarroslav/playwright-ai-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/Jarroslav/playwright-ai-triage/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/playwright-ai-triage)](LICENSE)
+
 A [Playwright](https://playwright.dev) reporter that classifies every test failure with an LLM —
 `REAL_BUG` / `FLAKY` / `SELECTOR_DRIFT` / `ENV_ISSUE` — and posts a short, human-readable summary
 to stdout, a GitHub PR comment, or Slack.
@@ -99,6 +104,23 @@ npx playwright test --last-failed        # or --grep the affected spec
 The PR comment upserts in place: the fixed finding moves to ✅ resolved, anything still
 failing stays ⏳ persisting without being re-announced, and a fully green re-run flips the
 comment to "all clear ✅". Your next scheduled full run re-validates everything else.
+
+## How this compares to hosted platforms
+
+Hosted test-analytics platforms (Currents, TestDino, Trunk, and similar) and this reporter
+solve overlapping problems in different shapes:
+
+|                        | Hosted platforms               | `playwright-ai-triage`                                                                       |
+| ---------------------- | ------------------------------ | -------------------------------------------------------------------------------------------- |
+| Where failure logs go  | the vendor's cloud             | no vendor platform — redacted text goes only to the Anthropic API and the outputs you enable |
+| Account / onboarding   | vendor account + project setup | no new account — one reporter line and your own Anthropic key                                |
+| Pricing                | vendor plans (free tiers vary) | free (MIT); you pay your own model usage, printed per run                                    |
+| Cross-run history      | yes — dashboards and trends    | no dashboards or trends, by design; a hosted add-on is on the [roadmap](docs/ROADMAP.md)     |
+| Failure classification | varies by vendor               | local deterministic heuristics + LLM; falls back to `UNCLASSIFIED` rather than guessing      |
+
+If you want dashboards and long-term analytics today, a hosted platform is the right tool. If
+you want your next red PR triaged with nothing leaving your control beyond the model API you
+already configure, this is.
 
 ## Known limitations
 
