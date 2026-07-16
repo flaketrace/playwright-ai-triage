@@ -63,7 +63,9 @@ such as assertion diffs and locator timeouts (selector drift vs flake).
 
 Sent to the Anthropic API per remaining failure (text only, secret-patterns redacted): test id, test
 title, file path, line number, error message, stack (truncated, `node_modules` frames
-stripped), failing step title, retry history with the retry-then-passed flag, the deterministic
+stripped), failing step title, retry history with the retry-then-passed flag and a short
+redacted error head for each earlier attempt that failed differently (so a timeout preceded
+by 500s reads as what it is), the deterministic
 heuristic prior (when one exists), duration, and — only if you opt in — a redacted DOM snapshot
 (from Playwright's own error-context attachment) and whatever you place in `GIT_DIFF_SUMMARY`.
 

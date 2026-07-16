@@ -2,6 +2,14 @@
 export interface FailureRetry {
   attempt: number;
   status: 'failed' | 'passed' | 'timedOut' | 'skipped' | 'interrupted';
+  /**
+   * head of this attempt's error text (redacted, truncated to 300 chars);
+   * present only for attempts other than the reported one whose error text
+   * differs from the reported error — the reported attempt's error is already
+   * the payload's errorMessage, and an identical repeat carries no signal
+   * beyond its status
+   */
+  errorHead?: string;
 }
 
 /** Everything the classifier is allowed to see about one failed test. */
