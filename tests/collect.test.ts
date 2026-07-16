@@ -201,6 +201,115 @@ describe('collectFailure', () => {
     expect(p.errorMessage).not.toContain('sk-ant-api03');
   });
 
+  it('carries a redacted error head for prior attempts, but not for the reported one', () => {
+    const test = fakeTest({
+      results: [
+        {
+          retry: 0,
+          status: 'failed',
+          errors: [
+            {
+              message:
+                'Failed to seed: 500 Internal Server Error (token sk-ant-api03-abcdefgh12345678)',
+            },
+          ],
+        },
+        {
+          retry: 1,
+          status: 'failed',
+          errors: [{ message: "TimeoutError: locator('#total') waiting 30000ms" }],
+        },
+      ],
+    });
+    const finalResult = fakeResult({
+      retry: 1,
+      errors: [{ message: "TimeoutError: locator('#total') waiting 30000ms" }],
+    });
+    const p = collectFailure(test, finalResult, opts);
+    expect(p.retries[0]?.errorHead).toContain('500 Internal Server Error');
+    expect(p.retries[0]?.errorHead).not.toContain('sk-ant-api03-abcdefgh12345678');
+    // the reported attempt's error is already the payload's errorMessage — never duplicated
+    expect(p.retries[1]?.errorHead).toBeUndefined();
+  });
+
+  it('strips ANSI from prior-attempt error heads and omits them for attempts without errors', () => {
+    const ESC = String.fromCharCode(27);
+    // realistic flaky-after-two-failures shape: the reporter always reports the
+    // last FAILED attempt (retry 1 here), never the passed one
+    const test = fakeTest({
+      outcome: () => 'flaky',
+      results: [
+        {
+          retry: 0,
+          status: 'failed',
+          errors: [{ message: `${ESC}[31mError: seed exploded${ESC}[39m` }],
+        },
+        { retry: 1, status: 'failed', errors: [{ message: 'boom' }] },
+        { retry: 2, status: 'passed' },
+      ],
+    });
+    const p = collectFailure(test, fakeResult({ retry: 1 }), opts);
+    expect(p.retries[0]?.errorHead).toBe('Error: seed exploded');
+    expect(p.retries[1]?.errorHead).toBeUndefined(); // the reported attempt
+    expect(p.retries[2]?.errorHead).toBeUndefined(); // passed, no errors
+  });
+
+  it('omits the errorHead when a prior attempt failed identically to the reported one', () => {
+    const test = fakeTest({
+      results: [
+        { retry: 0, status: 'failed', errors: [{ message: 'boom' }] },
+        { retry: 1, status: 'failed', errors: [{ message: 'boom' }] },
+      ],
+    });
+    const p = collectFailure(test, fakeResult({ retry: 1 }), opts);
+    // an identical repeat carries no signal beyond its status — don't spend tokens on it
+    expect(p.retries[0]?.errorHead).toBeUndefined();
+  });
+
+  it('dedupes repeats that differ only by ANSI codes or secret values', () => {
+    const ESC = String.fromCharCode(27);
+    const test = fakeTest({
+      results: [
+        {
+          retry: 0,
+          status: 'failed',
+          errors: [
+            { message: `${ESC}[31mauth failed for sk-ant-api03-aaaaaaaa11111111${ESC}[39m` },
+          ],
+        },
+        {
+          retry: 1,
+          status: 'failed',
+          errors: [{ message: 'auth failed for sk-ant-api03-bbbbbbbb22222222' }],
+        },
+      ],
+    });
+    const p = collectFailure(
+      test,
+      fakeResult({
+        retry: 1,
+        errors: [{ message: 'auth failed for sk-ant-api03-bbbbbbbb22222222' }],
+      }),
+      opts,
+    );
+    // after stripping/redaction both attempts read identically — still a repeat
+    expect(p.retries[0]?.errorHead).toBeUndefined();
+  });
+
+  it('truncates prior-attempt error heads to 300 chars', () => {
+    const test = fakeTest({
+      results: [
+        { retry: 0, status: 'failed', errors: [{ message: 'z'.repeat(5000) }] },
+        { retry: 1, status: 'failed', errors: [{ message: 'boom' }] },
+      ],
+    });
+    const p = collectFailure(test, fakeResult({ retry: 1 }), opts);
+    expect(p.retries[0]?.errorHead).toBeDefined();
+    expect((p.retries[0]?.errorHead ?? '').length).toBeLessThanOrEqual(300);
+    // head-first truncation: the original text's head survives, marked with an ellipsis
+    expect(p.retries[0]?.errorHead).toMatch(/^z+…$/);
+  });
+
   it('redacts secrets in error text', () => {
     const p = collectFailure(
       fakeTest(),

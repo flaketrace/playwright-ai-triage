@@ -5,7 +5,7 @@ import type { TestCase, TestResult, TestStep } from '@playwright/test/reporter';
 import { redact } from './redact.js';
 import type { FailurePayload, FailureRetry } from './types.js';
 
-const BUDGET = { error: 2000, stack: 2000, dom: 1500, diff: 1000 } as const;
+const BUDGET = { error: 2000, stack: 2000, dom: 1500, diff: 1000, retryError: 300 } as const;
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -84,16 +84,33 @@ export function collectFailure(
 ): FailurePayload {
   const clean = (text: string) => redact(stripAnsi(text), env);
 
-  const errorMessage = result.errors
-    .map((e) => e.message ?? '')
-    .filter(Boolean)
-    .join('\n\n');
+  const joinErrors = (errors: { message?: string }[] | undefined) =>
+    (errors ?? [])
+      .map((e) => e.message ?? '')
+      .filter(Boolean)
+      .join('\n\n');
+
+  const errorMessage = joinErrors(result.errors);
   const stack = result.errors.find((e) => e.stack)?.stack ?? '';
 
-  const retries: FailureRetry[] = test.results.map((r) => ({
-    attempt: r.retry,
-    status: r.status,
-  }));
+  // Prior attempts keep a short error head: without it the model sees only the
+  // final attempt's error (e.g. a bare timeout) and loses the earlier attempts'
+  // signal (e.g. the 500s that preceded it). Skipped when the CLEANED text
+  // repeats the reported attempt's — a repeat (even one differing only by ANSI
+  // codes or a rotated secret) carries no signal beyond its status, only token
+  // cost.
+  const cleanedReported = clean(errorMessage);
+  const retries: FailureRetry[] = test.results.map((r) => {
+    const raw = r.retry === result.retry ? '' : joinErrors(r.errors);
+    const cleaned = raw ? clean(raw) : '';
+    return {
+      attempt: r.retry,
+      status: r.status,
+      ...(cleaned && cleaned !== cleanedReported
+        ? { errorHead: truncate(cleaned, BUDGET.retryError) }
+        : {}),
+    };
+  });
 
   const domSnippet = options.includeDom ? domSnippetFrom(result) : undefined;
 
@@ -105,7 +122,7 @@ export function collectFailure(
     title: truncate(clean(test.title), BUDGET.error),
     file: test.location.file,
     line: test.location.line,
-    errorMessage: truncate(clean(errorMessage), BUDGET.error),
+    errorMessage: truncate(cleanedReported, BUDGET.error),
     stack: truncate(clean(stripNodeModulesFrames(stack)), BUDGET.stack),
     ...(failingStep ? { failingStep: truncate(clean(failingStep), BUDGET.error) } : {}),
     retries,
