@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
 import type { TestCase, TestResult, TestStep } from '@playwright/test/reporter';
 
@@ -72,6 +73,19 @@ function domSnippetFrom(result: TestResult): string | undefined {
 export interface CollectOptions {
   includeDom: boolean;
   diffSummary: string | undefined;
+  /** Playwright's config.rootDir; when set, finding paths render repo-relative */
+  rootDir?: string;
+}
+
+// Findings render CI-runner-absolute paths without this; relative paths are
+// shorter and match how the repo's own files are referenced in a PR. Files
+// outside rootDir (or on another Windows drive) keep the absolute path — a
+// wrong relative path is worse than a long absolute one.
+function relativizePath(file: string, rootDir: string | undefined): string {
+  if (!rootDir) return file;
+  const rel = path.relative(rootDir, file);
+  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return file;
+  return rel.split(path.sep).join('/');
 }
 
 type Env = Record<string, string | undefined>;
@@ -120,7 +134,7 @@ export function collectFailure(
     testId: test.id,
     // titles and step titles can interpolate runtime values — redact like all free text
     title: truncate(clean(test.title), BUDGET.error),
-    file: test.location.file,
+    file: relativizePath(test.location.file, options.rootDir),
     line: test.location.line,
     errorMessage: truncate(cleanedReported, BUDGET.error),
     stack: truncate(clean(stripNodeModulesFrames(stack)), BUDGET.stack),

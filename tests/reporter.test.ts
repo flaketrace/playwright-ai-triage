@@ -97,6 +97,16 @@ describe('AiTriageReporter', () => {
     expect(out).toContain('test a');
   });
 
+  it('renders finding paths relative to the config rootDir', async () => {
+    const reporter = new AiTriageReporter({}, { client: okClient() });
+    reporter.onBegin({ rootDir: '/repo' } as FullConfig, {} as Suite);
+    reporter.onTestEnd(fakeTest('a'), failedResult());
+    await reporter.onEnd(fullResult);
+    const out = logs.join('\n');
+    expect(out).toContain('t.spec.ts:1');
+    expect(out).not.toContain('/repo/t.spec.ts');
+  });
+
   it('prints only a one-liner on zero failures', async () => {
     const reporter = new AiTriageReporter({}, { client: okClient() });
     await run(reporter, []);

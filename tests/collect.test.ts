@@ -321,3 +321,44 @@ describe('collectFailure', () => {
     expect(p.errorMessage).not.toContain('sk-ant-api03-abcdefgh12345678');
   });
 });
+
+describe('repo-relative file paths', () => {
+  it('renders the file relative to rootDir', () => {
+    const p = collectFailure(fakeTest(), fakeResult(), { ...opts, rootDir: '/repo' });
+    expect(p.file).toBe('tests/checkout.spec.ts');
+  });
+
+  it('keeps the absolute path when the file is outside rootDir', () => {
+    const p = collectFailure(fakeTest(), fakeResult(), { ...opts, rootDir: '/elsewhere/project' });
+    expect(p.file).toBe('/repo/tests/checkout.spec.ts');
+  });
+
+  it('keeps the absolute path when no rootDir is provided (back-compat)', () => {
+    const p = collectFailure(fakeTest(), fakeResult(), opts);
+    expect(p.file).toBe('/repo/tests/checkout.spec.ts');
+  });
+
+  it('handles a trailing-slash rootDir', () => {
+    const p = collectFailure(fakeTest(), fakeResult(), { ...opts, rootDir: '/repo/' });
+    expect(p.file).toBe('tests/checkout.spec.ts');
+  });
+
+  it('does not treat a sibling directory sharing the path prefix as inside rootDir', () => {
+    const p = collectFailure(fakeTest(), fakeResult(), { ...opts, rootDir: '/repo/tests-archive' });
+    expect(p.file).toBe('/repo/tests/checkout.spec.ts');
+  });
+
+  it('keeps the absolute path when the file lives in a sibling dir extending rootDir as a prefix', () => {
+    const t = fakeTest({
+      location: { file: '/repo/tests-archive/old.spec.ts', line: 8, column: 1 },
+    });
+    const p = collectFailure(t, fakeResult(), { ...opts, rootDir: '/repo/tests' });
+    expect(p.file).toBe('/repo/tests-archive/old.spec.ts');
+  });
+
+  it('relativizes a directory whose name starts with dots', () => {
+    const t = fakeTest({ location: { file: '/repo/..data/x.spec.ts', line: 3, column: 1 } });
+    const p = collectFailure(t, fakeResult(), { ...opts, rootDir: '/repo' });
+    expect(p.file).toBe('..data/x.spec.ts');
+  });
+});
