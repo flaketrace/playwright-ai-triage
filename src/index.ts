@@ -65,6 +65,7 @@ export default class AiTriageReporter implements Reporter {
   private readonly internals: Internals;
   private config: ResolvedConfig | undefined;
   private shard: { current: number; total: number } | null = null;
+  private rootDir: string | undefined;
   private failures = new Map<string, { test: TestCase; result: TestResult }>();
 
   constructor(options: AiTriageOptions = {}, internals: Internals = {}) {
@@ -76,6 +77,7 @@ export default class AiTriageReporter implements Reporter {
     try {
       this.config = resolveConfig(this.options);
       this.shard = config.shard ?? null;
+      this.rootDir = config.rootDir;
     } catch (error) {
       this.warnInternal(error);
     }
@@ -113,6 +115,7 @@ export default class AiTriageReporter implements Reporter {
         collectFailure(test, result, {
           includeDom: config.includeDom,
           diffSummary: config.diffSummary,
+          ...(this.rootDir ? { rootDir: this.rootDir } : {}),
         }),
       );
 
