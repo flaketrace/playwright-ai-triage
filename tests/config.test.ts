@@ -83,4 +83,73 @@ describe('resolveConfig', () => {
     expect(c.slackWebhookUrl).toBe('https://hooks.slack.com/x');
     expect(c.diffSummary).toBe('3 files changed');
   });
+
+  it('accepts a sinkUrl option without an unknown-option warning', () => {
+    const warn = vi.fn();
+    const c = resolveConfig({ sinkUrl: 'https://sink.example/ingest' }, {}, warn);
+    expect(warn).not.toHaveBeenCalled();
+    expect(c.sinkUrl).toBe('https://sink.example/ingest');
+  });
+
+  it('falls back to AI_TRIAGE_SINK_URL when the option is unset — option wins when both exist', () => {
+    const fromEnv = resolveConfig({}, { AI_TRIAGE_SINK_URL: 'https://env.example/e' });
+    expect(fromEnv.sinkUrl).toBe('https://env.example/e');
+    const both = resolveConfig(
+      { sinkUrl: 'https://opt.example/o' },
+      { AI_TRIAGE_SINK_URL: 'https://env.example/e' },
+    );
+    expect(both.sinkUrl).toBe('https://opt.example/o');
+    expect(resolveConfig({}, {}).sinkUrl).toBeUndefined();
+  });
+
+  it('reads the sink token from env only', () => {
+    const c = resolveConfig({}, { AI_TRIAGE_SINK_TOKEN: 'tok' });
+    expect(c.sinkToken).toBe('tok');
+    expect(resolveConfig({}, {}).sinkToken).toBeUndefined();
+  });
+
+  it('an invalid sinkUrl disables the sink with a warning — other options survive', () => {
+    const warn = vi.fn();
+    const c = resolveConfig({ sinkUrl: 'not a url', dryRun: true, maxFailures: 7 }, {}, warn);
+    expect(c.sinkUrl).toBeUndefined();
+    expect(c.dryRun).toBe(true);
+    expect(c.maxFailures).toBe(7);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('sink'));
+  });
+
+  it('an invalid option sinkUrl does not silently fall back to the env URL', () => {
+    const warn = vi.fn();
+    const c = resolveConfig(
+      { sinkUrl: 'not a url' },
+      { AI_TRIAGE_SINK_URL: 'https://env.example/e' },
+      warn,
+    );
+    expect(c.sinkUrl).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('an invalid env sink URL also warns and disables the sink', () => {
+    const warn = vi.fn();
+    const c = resolveConfig({}, { AI_TRIAGE_SINK_URL: 'nope' }, warn);
+    expect(c.sinkUrl).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('sink'));
+  });
+
+  it('rejects non-http(s) sink protocols', () => {
+    const warn = vi.fn();
+    const c = resolveConfig({ sinkUrl: 'ftp://sink.example/x' }, {}, warn);
+    expect(c.sinkUrl).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('warns when a bearer token would travel over plaintext http', () => {
+    const warn = vi.fn();
+    const c = resolveConfig(
+      { sinkUrl: 'http://sink.example/x' },
+      { AI_TRIAGE_SINK_TOKEN: 'tok' },
+      warn,
+    );
+    expect(c.sinkUrl).toBe('http://sink.example/x');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('plaintext'));
+  });
 });

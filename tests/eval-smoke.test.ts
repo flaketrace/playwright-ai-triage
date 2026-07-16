@@ -111,6 +111,8 @@ describe('infraReason', () => {
       githubToken: undefined,
       slackWebhookUrl: undefined,
       diffSummary: undefined,
+      sinkUrl: undefined,
+      sinkToken: undefined,
     };
     const payload = SMOKE_FIXTURES[0]?.payload;
     if (!payload) throw new Error('smoke fixtures are empty');

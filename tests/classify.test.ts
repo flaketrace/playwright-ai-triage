@@ -28,6 +28,8 @@ const config = (overrides: Partial<ResolvedConfig> = {}): ResolvedConfig => ({
   githubToken: undefined,
   slackWebhookUrl: undefined,
   diffSummary: undefined,
+  sinkUrl: undefined,
+  sinkToken: undefined,
   ...overrides,
 });
 

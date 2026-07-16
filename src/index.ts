@@ -23,8 +23,9 @@ import {
   type FetchPreviousResult,
 } from './render/github.js';
 import { buildSlackPayload, postSlackMessage } from './render/slack.js';
+import { buildSinkEnvelope, postToSink } from './sink.js';
 import { renderPlainSummary, renderStdoutSummary } from './summary.js';
-import type { AiTriageOptions } from './types.js';
+import type { AiTriageOptions, Classification, FailurePayload } from './types.js';
 
 const TAG = '[playwright-ai-triage]';
 
@@ -106,6 +107,9 @@ export default class AiTriageReporter implements Reporter {
       });
       if (entries.length === 0) {
         console.log(`${TAG} no failures to triage.`);
+        // A green run still posts an empty-failures envelope: run presence is
+        // data (a consumer can't otherwise tell "all green" from "no run").
+        await this.postSink([], null, config);
         // R1: fixed ⇒ gone — a green run flips our previous red comment to all-clear
         await this.flipToAllClear(config);
         return undefined;
@@ -122,6 +126,8 @@ export default class AiTriageReporter implements Reporter {
       const { classified, costUsd, notes } = await classifyFailures(payloads, config, {
         ...(this.internals.client ? { client: this.internals.client } : {}),
       });
+
+      await this.postSink(classified, costUsd ?? null, config);
 
       if (!config.apiKey && !config.dryRun) {
         // Keyless: deterministic local verdicts still classify for free
@@ -213,6 +219,34 @@ export default class AiTriageReporter implements Reporter {
 
   printsToStdio(): boolean {
     return true;
+  }
+
+  /**
+   * The sink fires on keyed AND keyless runs (statuses and fingerprints are
+   * useful data either way) and on green runs (empty failures — run presence is
+   * data), but never in dryRun: demo runs must not POST fixture data to a real
+   * endpoint. A sink failure warns and never affects the run.
+   */
+  private async postSink(
+    classified: { payload: FailurePayload; classification: Classification }[],
+    costUsd: number | null,
+    config: ResolvedConfig,
+  ): Promise<void> {
+    if (!config.sinkUrl || config.dryRun) return;
+    const envelope = buildSinkEnvelope(
+      classified,
+      costUsd,
+      this.shard,
+      process.env,
+      config.apiKey ? config.model : null,
+    );
+    const result = await postToSink(
+      envelope,
+      config.sinkUrl,
+      config.sinkToken,
+      this.internals.fetchImpl,
+    );
+    if (!result.ok) console.warn(`${TAG} sink output skipped: ${result.note}`);
   }
 
   /**
