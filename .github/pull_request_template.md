@@ -6,6 +6,7 @@
 
 - [ ] `npm run gate` passes (lint + typecheck + tests + build)
 - [ ] Commits follow conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, …)
+- [ ] Every commit is signed off (`git commit -s` — DCO, see CONTRIBUTING.md)
 - [ ] Tests added/updated for the change
 - [ ] Changeset added (`npx changeset`) if the change is user-visible
 - [ ] No secrets or real API keys in code, tests, or fixtures

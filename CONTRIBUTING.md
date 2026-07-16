@@ -9,6 +9,15 @@ Thanks for your interest! Issues and PRs are welcome — check
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, …).
 - Add a changeset (`npx changeset`) for anything user-visible.
 - Never commit secrets or real API keys; tests mock the Anthropic SDK.
+- Sign off every commit (see below).
+
+## Developer Certificate of Origin
+
+By contributing you certify the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/) — that you wrote your
+contribution or otherwise have the right to submit it under this project's MIT license. Sign
+each commit with `git commit -s`, which adds the `Signed-off-by:` trailer that CI checks on
+every pull request.
 
 ## Setup
 
