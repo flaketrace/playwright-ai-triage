@@ -2,9 +2,8 @@ import type { FailurePayload } from './types.js';
 
 /**
  * Classifier prompt. The live prompt ships in source by necessity (self-hosted
- * tool); iteration history and eval results live in the private prompt-lab.
- * PROMPT_VERSION below is the load-bearing version string; the dated blocks are
- * changelog.
+ * tool). PROMPT_VERSION below is the load-bearing version string — bump it with
+ * any change to the prompt text; the dated blocks are changelog.
  *
  * v002 (first dogfood round): deterministic element-absence was systematically
  * misclassified as SELECTOR_DRIFT when the true cause was a feature flag /
