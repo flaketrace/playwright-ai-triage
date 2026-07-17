@@ -33,7 +33,7 @@ exports[`buildSlackPayload > builds a Block Kit payload (golden) 1`] = `
     {
       "elements": [
         {
-          "text": "Triaged by <https://github.com/Jarroslav/playwright-ai-triage|playwright-ai-triage> · claude-haiku-4-5 · $0.0100",
+          "text": "Triaged by <https://github.com/flaketrace/playwright-ai-triage|playwright-ai-triage> · claude-haiku-4-5 · $0.0100",
           "type": "mrkdwn",
         },
       ],

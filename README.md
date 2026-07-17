@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/playwright-ai-triage)](https://www.npmjs.com/package/playwright-ai-triage)
 [![npm downloads](https://img.shields.io/npm/dm/playwright-ai-triage)](https://www.npmjs.com/package/playwright-ai-triage)
-[![CI](https://github.com/Jarroslav/playwright-ai-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/Jarroslav/playwright-ai-triage/actions/workflows/ci.yml)
+[![CI](https://github.com/flaketrace/playwright-ai-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/flaketrace/playwright-ai-triage/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/playwright-ai-triage)](LICENSE)
 
 A [Playwright](https://playwright.dev) reporter that classifies every test failure with an LLM —
@@ -13,7 +13,7 @@ to stdout, a GitHub PR comment, or Slack.
 
 _Illustrative example of the output format (static version:
 [hero-comment.png](docs/assets/hero-comment.png)) — in CI the summary lands as a single
-auto-updating comment on your PR; see [a live comment posted by our own CI](https://github.com/Jarroslav/playwright-ai-triage/pull/3)._
+auto-updating comment on your PR; see [a live comment posted by our own CI](https://github.com/flaketrace/playwright-ai-triage/pull/3)._
 
 Self-hosted by design: you bring your own Anthropic API key, and your test results are processed
 inside your own CI. There is no hosted platform behind this package. Failure text is sent to two

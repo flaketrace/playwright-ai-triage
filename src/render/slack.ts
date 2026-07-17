@@ -77,7 +77,7 @@ export function buildSlackPayload(classified: ClassifiedFailure[], ctx: RenderCo
     elements: [
       {
         type: 'mrkdwn',
-        text: `Triaged by <https://github.com/Jarroslav/playwright-ai-triage|playwright-ai-triage> · ${ctx.model} · ${cost}`,
+        text: `Triaged by <https://github.com/flaketrace/playwright-ai-triage|playwright-ai-triage> · ${ctx.model} · ${cost}`,
       },
     ],
   });

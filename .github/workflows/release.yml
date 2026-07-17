@@ -21,7 +21,7 @@ concurrency: release-${{ github.ref }}
 
 jobs:
   release:
-    if: github.repository == 'Jarroslav/playwright-ai-triage'
+    if: github.repository == 'flaketrace/playwright-ai-triage'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

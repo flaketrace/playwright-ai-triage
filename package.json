@@ -16,7 +16,7 @@
   "author": "Yaroslav Krivushenko",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jarroslav/playwright-ai-triage.git"
+    "url": "git+https://github.com/flaketrace/playwright-ai-triage.git"
   },
   "type": "module",
   "engines": {

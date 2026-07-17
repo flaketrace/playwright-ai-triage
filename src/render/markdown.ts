@@ -1,7 +1,7 @@
 import type { ClassifiedFailure } from '../classify.js';
 import { CLASS_BADGE, CLASS_ORDER } from './badges.js';
 
-const REPO_URL = 'https://github.com/Jarroslav/playwright-ai-triage';
+const REPO_URL = 'https://github.com/flaketrace/playwright-ai-triage';
 
 /** Detail bullets across the whole comment; catastrophic runs summarize the rest. */
 const MAX_LISTED = 50;

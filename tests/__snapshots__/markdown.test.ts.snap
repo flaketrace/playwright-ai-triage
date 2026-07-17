@@ -6,7 +6,7 @@ exports[`renderAllClearSummary > renders the all-clear state with a resolved cou
 3 previously reported failure(s) resolved.
 
 ---
-_Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-triage)_"
+_Triaged by [playwright-ai-triage](https://github.com/flaketrace/playwright-ai-triage)_"
 `;
 
 exports[`renderMarkdownSummary > groups by project when a project map is provided (golden) 1`] = `
@@ -27,7 +27,7 @@ exports[`renderMarkdownSummary > groups by project when a project map is provide
   - \`/repo/tests/b.spec.ts:7\`
 
 ---
-_Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
+_Triaged by [playwright-ai-triage](https://github.com/flaketrace/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
 `;
 
 exports[`renderMarkdownSummary > renders delta labels: new gets full detail, persisting collapses to one line (golden) 1`] = `
@@ -45,7 +45,7 @@ exports[`renderMarkdownSummary > renders delta labels: new gets full detail, per
 - ⏳ **test again** _(90%)_ · \`/repo/tests/again.spec.ts:7\`
 
 ---
-_Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
+_Triaged by [playwright-ai-triage](https://github.com/flaketrace/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
 `;
 
 exports[`renderMarkdownSummary > renders the grouped summary (golden) 1`] = `
@@ -68,5 +68,5 @@ exports[`renderMarkdownSummary > renders the grouped summary (golden) 1`] = `
   - \`/repo/tests/c.spec.ts:7\`
 
 ---
-_Triaged by [playwright-ai-triage](https://github.com/Jarroslav/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
+_Triaged by [playwright-ai-triage](https://github.com/flaketrace/playwright-ai-triage) · claude-haiku-4-5 · $0.0123_"
 `;
