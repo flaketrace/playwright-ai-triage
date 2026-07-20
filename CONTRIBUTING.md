@@ -35,6 +35,16 @@ own key and include its output in the PR:
 ANTHROPIC_API_KEY=sk-... npm run eval:smoke
 ```
 
-A handful of synthetic fixtures, one Haiku call each — costs a fraction of a cent, exits
-non-zero on any class-accuracy miss. It catches gross regressions; the maintainer additionally
-runs a larger private eval (real-world-derived fixtures) before merging prompt changes.
+A handful of synthetic fixtures, one Haiku call each — a fraction of a cent. It exits non-zero on
+any class-accuracy miss, catching gross regressions; the maintainer additionally runs a larger
+private eval (real-world-derived fixtures) before merging prompt changes.
+
+Classification is a draw from a distribution, so one call per fixture is a point estimate with
+invisible variance. Set `EVAL_DRAWS=N` (max 25) to classify each fixture N times and grade the
+modal class. The table then shows per-fixture agreement, making a fixture whose class flips
+between identical calls visible even when the accuracy column looks perfect. Cost scales linearly
+with N.
+
+Prefer an odd N. An even one invites ties, and a tied fixture is indeterminate rather than
+inaccurate: it is reported ungraded, excluded from the accuracy figure, and exits 4 — distinct
+from 1, which means a real class miss.

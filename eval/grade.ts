@@ -15,6 +15,13 @@ export interface GradeReport {
   rows: GradeRow[];
   passed: number;
   failed: number;
+  /**
+   * ⚠️ `passed === rows.length` over ALL rows, including any the caller chose
+   * not to grade (those arrive here with no result and count as failures). A
+   * caller that excludes rows — e.g. indeterminate ones — must compare
+   * `passed` against its own gradeable count, NOT read this field: doing the
+   * latter once made an entire exit branch unreachable.
+   */
   allPass: boolean;
 }
 

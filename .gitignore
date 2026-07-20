@@ -16,6 +16,7 @@ examples/tarball-smoke/output.log
 
 # internal development tooling — intentionally untracked in this repo
 .agentic/
+.agentic
 .agents/
 .ai-run/
 .claude/

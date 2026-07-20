@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { summarizeDraws } from '../eval/draws.js';
+import { evalExitCode } from '../eval/exit.js';
 import { SMOKE_FIXTURES } from '../eval/fixtures.js';
 import { grade } from '../eval/grade.js';
 import { infraReason } from '../eval/infra.js';
@@ -184,5 +186,104 @@ describe('grade', () => {
     expect(report.passed).toBe(1);
     expect(report.failed).toBe(1);
     expect(report.allPass).toBe(false);
+  });
+});
+
+describe('summarizeDraws (§14.2b distribution measurement)', () => {
+  it('returns undefined for no draws', () => {
+    expect(summarizeDraws([])).toBeUndefined();
+  });
+
+  it('a unanimous set is stable, with confidence averaged', () => {
+    const s = summarizeDraws([
+      classification({ confidence: 0.6 }),
+      classification({ confidence: 0.8 }),
+    ])!;
+    expect(s.classification.class).toBe('REAL_BUG');
+    expect(s.classification.confidence).toBeCloseTo(0.7, 5);
+    expect(s).toMatchObject({ agreeing: 2, total: 2, unstable: false });
+  });
+
+  it('grades the majority and flags the split as unstable', () => {
+    const s = summarizeDraws([
+      classification({ class: 'REAL_BUG' }),
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'REAL_BUG' }),
+    ])!;
+    expect(s.classification.class).toBe('REAL_BUG');
+    expect(s).toMatchObject({ agreeing: 2, total: 3, unstable: true, tied: false });
+  });
+
+  it('averages confidence over the majority only, ignoring dissenting draws', () => {
+    const s = summarizeDraws([
+      classification({ class: 'REAL_BUG', confidence: 0.7 }),
+      classification({ class: 'ENV_ISSUE', confidence: 0.1 }),
+      classification({ class: 'REAL_BUG', confidence: 0.9 }),
+    ])!;
+    expect(s.classification.confidence).toBeCloseTo(0.8, 5);
+  });
+
+  it('a 1-1 tie is flagged indeterminate so the caller cannot grade a coin flip', () => {
+    const s = summarizeDraws([
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'REAL_BUG' }),
+    ])!;
+    expect(s).toMatchObject({ agreeing: 1, total: 2, unstable: true, tied: true });
+  });
+
+  it('a three-way split with no majority is tied', () => {
+    const s = summarizeDraws([
+      classification({ class: 'REAL_BUG' }),
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'FLAKY' }),
+    ])!;
+    expect(s.tied).toBe(true);
+  });
+
+  it('a 2-2-1 split is tied even though one class leads the singleton', () => {
+    const s = summarizeDraws([
+      classification({ class: 'REAL_BUG' }),
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'REAL_BUG' }),
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'FLAKY' }),
+    ])!;
+    expect(s).toMatchObject({ agreeing: 2, total: 5, tied: true });
+  });
+
+  it('a clear 2-1 majority is unstable but NOT tied — it is gradeable', () => {
+    const s = summarizeDraws([
+      classification({ class: 'REAL_BUG' }),
+      classification({ class: 'ENV_ISSUE' }),
+      classification({ class: 'REAL_BUG' }),
+    ])!;
+    expect(s).toMatchObject({ agreeing: 2, total: 3, unstable: true, tied: false });
+  });
+
+  it('a single draw is trivially stable — the status-quo measurement', () => {
+    const s = summarizeDraws([classification()])!;
+    expect(s).toMatchObject({ agreeing: 1, total: 1, unstable: false, tied: false });
+  });
+});
+
+describe('evalExitCode (§14.2b exit contract)', () => {
+  it('0 — every gradeable fixture accurate, nothing tied', () => {
+    expect(evalExitCode({ passed: 6, gradeable: 6, tiedCount: 0 })).toBe(0);
+  });
+
+  it('4 — every GRADEABLE fixture accurate but something tied (the unreachable-branch regression)', () => {
+    expect(evalExitCode({ passed: 3, gradeable: 3, tiedCount: 1 })).toBe(4);
+  });
+
+  it('1 — a real class miss with no ties', () => {
+    expect(evalExitCode({ passed: 5, gradeable: 6, tiedCount: 0 })).toBe(1);
+  });
+
+  it('1 — a real miss outranks a tie (precedence: a regression is never masked)', () => {
+    expect(evalExitCode({ passed: 2, gradeable: 3, tiedCount: 2 })).toBe(1);
+  });
+
+  it('4 — every fixture tied is an absence of measurement, not a miss', () => {
+    expect(evalExitCode({ passed: 0, gradeable: 0, tiedCount: 6 })).toBe(4);
   });
 });
