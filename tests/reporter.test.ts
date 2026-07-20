@@ -559,6 +559,36 @@ describe('AiTriageReporter', () => {
       expect(body).toContain(`${fp}:ENV_ISSUE:0.80`);
     });
 
+    it('steady state: reuses the persisting class while voting only the new fingerprint', async () => {
+      stubPrContext();
+      // learn fingerprint A from our own emission
+      const seed = ghFetch([]);
+      const r1 = new AiTriageReporter({}, { client: okClient(), fetchImpl: seed });
+      await run(r1, [[fakeTest('a'), failedResult()]]);
+      const seeded = JSON.parse(mutations(seed)[0]![1].body).body as string;
+      const fpA = seeded.match(/:fps:v2 ([0-9a-f]{12}):/)![1]!;
+
+      const previous = `<!-- playwright-ai-triage -->\nold\n<!-- playwright-ai-triage:fps:v2 ${fpA}:ENV_ISSUE:0.80 -->`;
+      const fetchImpl = ghFetch([{ id: 11, body: previous }]);
+      const client = okClient();
+      const r2 = new AiTriageReporter({}, { client, fetchImpl });
+      // 'a' persists (same failure), 'b' is brand new
+      await run(r2, [
+        [fakeTest('a'), failedResult()],
+        [
+          fakeTest('b'),
+          failedResult({ errors: [{ message: 'a totally different boom', stack: '' }] }),
+        ],
+      ]);
+
+      // one batch × 3 draws for the new fingerprint only — the persisting one is free
+      expect(parseCallCount(client)).toBe(3);
+      const body = JSON.parse(mutations(fetchImpl)[0]![1].body).body as string;
+      expect(body).toContain(`${fpA}:ENV_ISSUE:0.80`); // carried forward untouched
+      expect(body).toContain('reused prior classification');
+      expect(body).toMatch(/:REAL_BUG:0\.90/); // the newly voted one frozen alongside
+    });
+
     it('votes new fingerprints with 3 draws under PR context', async () => {
       stubPrContext();
       const client = okClient();
@@ -574,7 +604,7 @@ describe('AiTriageReporter', () => {
       expect(parseCallCount(client)).toBe(1);
     });
 
-    it('classifies normally (voted) when the previous-comment fetch fails', async () => {
+    it('still classifies (single draw) and never throws when the previous-comment fetch fails', async () => {
       stubPrContext();
       const fetchImpl = vi.fn(async (_url: string, init?: { method?: string }) => {
         if (!init?.method || init.method === 'GET') throw new Error('gh down');
@@ -583,8 +613,28 @@ describe('AiTriageReporter', () => {
       const client = okClient();
       const reporter = new AiTriageReporter({}, { client, fetchImpl });
       await run(reporter, [[fakeTest('a'), failedResult()]]);
-      expect(parseCallCount(client)).toBe(3); // vote still on; sticky just empty
+      // classification still happens (sticky just empty), but a failed read means
+      // we cannot count on the write, so we do not pay 3x to freeze what may not persist
+      expect(parseCallCount(client)).toBe(1);
       expect(warns.join('\n')).toContain('github'); // posting failure is a warn, never a throw
+    });
+
+    it('stays on a single draw when the token cannot read PR comments (403 — post will fail too)', async () => {
+      stubPrContext();
+      // permissions: contents: read (GitHub's default for new orgs) — the token
+      // exists, so context detection passes, but every comments call 403s
+      const fetchImpl = vi.fn(async () => ({
+        ok: false,
+        status: 403,
+        json: async () => ({ message: 'Resource not accessible by integration' }),
+      }));
+      const client = okClient();
+      const reporter = new AiTriageReporter({}, { client, fetchImpl });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      // nothing can ever be frozen, so voting is pure waste — and it would repeat
+      // on every run forever, since the permission gap is persistent, not transient
+      expect(parseCallCount(client)).toBe(1);
+      expect(warns.join('\n')).toMatch(/pull-requests: write/); // actionable hint still surfaced
     });
 
     it('stays on a single draw for keyed non-PR CI runs (push/schedule — nothing to freeze)', async () => {
@@ -597,6 +647,64 @@ describe('AiTriageReporter', () => {
       const reporter = new AiTriageReporter({}, { client, fetchImpl });
       await run(reporter, [[fakeTest('a'), failedResult()]]);
       expect(parseCallCount(client)).toBe(1); // no vote, no triple spend
+    });
+
+    it('does not freeze a class on a run that could not vote (unvoted draws are never stored)', async () => {
+      stubPrContext();
+      // the narrow window the freeze gate closes: the early read fails, but the
+      // read inside postGithubComment recovers, so the comment IS written — an
+      // unvoted single draw must still not be frozen into it
+      let gets = 0;
+      const fetchImpl = vi.fn(async (_url: string, init?: { method?: string }) => {
+        if (!init?.method || init.method === 'GET') {
+          gets += 1;
+          if (gets === 1) throw new Error('transient gh blip');
+          return { ok: true, status: 200, json: async () => [] };
+        }
+        return { ok: true, status: 201, json: async () => ({}) };
+      });
+      const client = okClient();
+      const reporter = new AiTriageReporter({}, { client, fetchImpl });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+
+      expect(gets).toBeGreaterThan(1); // read recovered
+      expect(parseCallCount(client)).toBe(1); // but this run did not vote
+      const posts = mutations(fetchImpl);
+      expect(posts).toHaveLength(1); // and the comment was written
+      const body = JSON.parse(posts[0]![1].body).body as string;
+      expect(body).toMatch(/:fps:v2 [0-9a-f]{12} -->/); // bare token — nothing frozen
+    });
+
+    it('an unvoted run must not erase classes already stored for a still-failing fingerprint', async () => {
+      stubPrContext();
+      // learn the fingerprint this failure produces
+      const seed = ghFetch([]);
+      const r1 = new AiTriageReporter({}, { client: okClient(), fetchImpl: seed });
+      await run(r1, [[fakeTest('a'), failedResult()]]);
+      const fp = (JSON.parse(mutations(seed)[0]![1].body).body as string).match(
+        /:fps:v2 ([0-9a-f]{12}):/,
+      )![1]!;
+
+      // that fingerprint already carries a stored class; early read blips, the read
+      // inside postGithubComment recovers and finds the prior comment
+      const previousBody = `<!-- playwright-ai-triage -->\nold\n<!-- playwright-ai-triage:fps:v2 ${fp}:ENV_ISSUE:0.80 -->`;
+      let gets = 0;
+      const fetchImpl = vi.fn(async (_url: string, init?: { method?: string }) => {
+        if (!init?.method || init.method === 'GET') {
+          gets += 1;
+          if (gets === 1) throw new Error('transient gh blip');
+          return { ok: true, status: 200, json: async () => [{ id: 11, body: previousBody }] };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+      const client = okClient();
+      const r2 = new AiTriageReporter({}, { client, fetchImpl });
+      await run(r2, [[fakeTest('a'), failedResult()]]);
+
+      expect(parseCallCount(client)).toBe(1); // did not vote
+      const body = JSON.parse(mutations(fetchImpl)[0]![1].body).body as string;
+      expect(body).not.toMatch(/:REAL_BUG:/); // froze nothing of its own
+      expect(body).toContain(`${fp}:ENV_ISSUE:0.80`); // prior verdict carried forward
     });
 
     it('emits a class-less block in dryRun so fixture classes never poison sticky state', async () => {

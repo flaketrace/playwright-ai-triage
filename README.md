@@ -37,6 +37,16 @@ One line in your config, `ANTHROPIC_API_KEY` in your CI env — that's the whole
 (On a clean machine: install → first triage in well under a minute, plus the usual
 one-time Playwright browser download.)
 
+For the GitHub PR comment specifically, the workflow token also needs write access to pull
+requests — many organisations default new repositories to read-only workflow permissions, and
+without this the comment is skipped (the reporter says so, and your build stays green):
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
 ## Configuration
 
 The full option surface (auto-detection covers everything else):

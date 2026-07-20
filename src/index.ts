@@ -30,6 +30,18 @@ import type { AiTriageOptions, Classification, FailurePayload } from './types.js
 
 const TAG = '[playwright-ai-triage]';
 
+/** Classes stored in a previous comment's block, keyed by fingerprint (R2 sticky source). */
+function storedClasses(body: string): StickyClassMap {
+  const entries = parseFingerprintBlock(body) ?? [];
+  return new Map(
+    entries
+      .filter(
+        (e): e is Required<FingerprintEntry> => e.class !== undefined && e.confidence !== undefined,
+      )
+      .map((e) => [e.fingerprint, { class: e.class, confidence: e.confidence }]),
+  );
+}
+
 /** Map the previous comment's fingerprint block to per-test delta labels (R3). */
 function deltaContext(
   previous: FetchPreviousResult,
@@ -134,8 +146,7 @@ export default class AiTriageReporter implements Reporter {
       // and dryRun runs never freeze classes, so they neither fetch nor vote.
       // detectGithubContext keeps scheduled/push CI runs (github output enabled,
       // but no PR to hold state) on single draws — voting there would triple
-      // token spend with nothing ever frozen. A transient fetch failure on a
-      // real PR keeps voting on: the block may still post via the upsert search.
+      // token spend with nothing ever frozen.
       const stickyEligible =
         config.outputs.includes('github') &&
         Boolean(config.apiKey) &&
@@ -146,24 +157,31 @@ export default class AiTriageReporter implements Reporter {
       if (stickyEligible) {
         previous = await fetchPreviousComment(this.shard, process.env, this.internals.fetchImpl);
         if (!('skipReason' in previous) && previous.found) {
-          const previousEntries = parseFingerprintBlock(previous.found.body);
-          if (previousEntries) {
-            sticky = new Map(
-              previousEntries
-                .filter(
-                  (e): e is Required<FingerprintEntry> =>
-                    e.class !== undefined && e.confidence !== undefined,
-                )
-                .map((e) => [e.fingerprint, { class: e.class, confidence: e.confidence }]),
-            );
-          }
+          sticky = storedClasses(previous.found.body);
         }
       }
+
+      // Vote only when the state we are voting to freeze can actually be written.
+      // `GITHUB_TOKEN` is always present in Actions — only its SCOPES vary — so
+      // context detection cannot tell a writable token from a read-only one. The
+      // fetch above is that signal at no extra cost: the same missing scope that
+      // 403s the comment list (e.g. the `permissions: contents: read` default)
+      // will 403 the post, so nothing would ever be frozen and the extra draws
+      // would be pure waste on every run, forever. `found: undefined` is a
+      // SUCCESSFUL fetch (no previous comment yet), so first-run voting is
+      // unaffected.
+      //
+      // `vote` doubles as the freeze gate below: a class is only ever written
+      // into the block on a run that voted on it. Without that coupling, a
+      // transient read failure followed by a recovered write would freeze a
+      // single-draw class permanently — worse than pre-0.7.0, where an unvoted
+      // class was simply re-derived next run.
+      const vote = stickyEligible && previous !== undefined && !('skipReason' in previous);
 
       const { classified, costUsd, notes } = await classifyFailures(payloads, config, {
         ...(this.internals.client ? { client: this.internals.client } : {}),
         ...(sticky ? { sticky } : {}),
-        ...(stickyEligible ? { vote: true } : {}),
+        ...(vote ? { vote: true } : {}),
       });
 
       await this.postSink(classified, costUsd ?? null, config);
@@ -212,10 +230,14 @@ export default class AiTriageReporter implements Reporter {
       if (config.outputs.includes('github')) {
         // R3: the previous comment's fingerprint block is the only cross-run
         // state — already fetched above on sticky-eligible runs, fetched here
-        // otherwise (dryRun posts too, with a class-less block).
+        // otherwise (dryRun posts too, with a class-less block). A failed early
+        // fetch is retried rather than reused: the blip may have passed, and we
+        // need the stored classes below to carry them forward instead of
+        // erasing them (it also restores `existing`, dropping a duplicate search).
         const prev =
-          previous ??
-          (await fetchPreviousComment(this.shard, process.env, this.internals.fetchImpl));
+          previous && !('skipReason' in previous)
+            ? previous
+            : await fetchPreviousComment(this.shard, process.env, this.internals.fetchImpl);
         const fingerprintByTestId: Record<string, string> = {};
         for (const { payload } of classified) {
           fingerprintByTestId[payload.testId] = failureFingerprint(payload);
@@ -224,14 +246,37 @@ export default class AiTriageReporter implements Reporter {
           ...renderContext,
           ...deltaContext(prev, fingerprintByTestId),
         });
-        // dryRun must not freeze fixture classes into state a later real run
-        // would reuse — its block carries bare fingerprints (delta still works).
-        const blockEntries: FingerprintEntry[] = classified.map(({ payload, classification }) => ({
-          fingerprint: fingerprintByTestId[payload.testId]!,
-          ...(config.dryRun
-            ? {}
-            : { class: classification.class, confidence: classification.confidence }),
-        }));
+        // Freeze a class only on a run that voted on it (`vote` above) — this
+        // subsumes the dryRun rule, since dryRun is never sticky-eligible, so
+        // fixture classes can never reach state a later real run would reuse.
+        //
+        // An unvoted run CARRIES FORWARD whatever the comment already stored
+        // rather than blanking it. Writing this run's unvoted draw would freeze
+        // a single draw; writing nothing would erase accumulated state and force
+        // a full re-vote (with fresh class flips) on the next run — the very
+        // instability R2 exists to prevent. Carry-forward is neither: this run
+        // contributes no class of its own, and prior verdicts survive.
+        //
+        // Residual (accepted): if BOTH reads above fail and only postGithubComment's
+        // own search recovers, `carried` is empty and bare entries still overwrite
+        // stored classes. Closing that needs the merge to happen inside
+        // postGithubComment — the only party holding the comment on that path — and
+        // the trigger (two consecutive failures, then a recovery) does not justify
+        // widening its contract. Self-heals after one run.
+        const carried =
+          !('skipReason' in prev) && prev.found ? storedClasses(prev.found.body) : undefined;
+        const blockEntries: FingerprintEntry[] = classified.map(({ payload, classification }) => {
+          const fingerprint = fingerprintByTestId[payload.testId]!;
+          if (vote) {
+            return {
+              fingerprint,
+              class: classification.class,
+              confidence: classification.confidence,
+            };
+          }
+          const prior = carried?.get(fingerprint);
+          return prior ? { fingerprint, ...prior } : { fingerprint };
+        });
         const result = await postGithubComment(
           markdown,
           this.shard,
