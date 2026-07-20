@@ -27,6 +27,40 @@ const classification = (overrides: Partial<Classification> = {}): Classification
 });
 
 describe('buildSinkEnvelope', () => {
+  it('carries reused and draws provenance when present, omits them otherwise (schema v1 additive)', () => {
+    const classified = [
+      {
+        payload: payload('a'),
+        classification: classification({ class: 'ENV_ISSUE' }),
+        reused: true,
+      },
+      {
+        payload: payload('b'),
+        classification: classification(),
+        draws: [
+          { class: 'REAL_BUG' as const, confidence: 0.7 },
+          { class: 'REAL_BUG' as const, confidence: 0.8 },
+          { class: 'ENV_ISSUE' as const, confidence: 0.9 },
+        ],
+      },
+      { payload: payload('c'), classification: classification() },
+    ];
+    const envelope = buildSinkEnvelope(classified, 0.01, null, {}, 'claude-haiku-4-5');
+    expect(envelope.schema).toBe('ai-triage-sink/v1');
+    expect(envelope.failures[0]!.reused).toBe(true);
+    expect(envelope.failures[0]!.draws).toBeUndefined();
+    expect(envelope.failures[1]!.reused).toBeUndefined();
+    expect(envelope.failures[1]!.draws).toEqual([
+      { class: 'REAL_BUG', confidence: 0.7 },
+      { class: 'REAL_BUG', confidence: 0.8 },
+      { class: 'ENV_ISSUE', confidence: 0.9 },
+    ]);
+    expect('reused' in envelope.failures[1]!).toBe(false);
+    expect('draws' in envelope.failures[0]!).toBe(false);
+    expect(envelope.failures[2]!.reused).toBeUndefined();
+    expect(envelope.failures[2]!.draws).toBeUndefined();
+  });
+
   it('builds a versioned envelope with fingerprints and class counts', () => {
     const classified = [
       { payload: payload('a'), classification: classification() },

@@ -3,8 +3,15 @@ import { createHash } from 'node:crypto';
 /**
  * Failure fingerprint (R2): a short stable identity for "the same failure" —
  * same test + same error shape ⇒ same id, across runs. Used for cross-run
- * delta labeling (NEW / PERSISTING / RESOLVED), dogfood-log identity, and
- * calibration tracking (identical fingerprints should classify identically).
+ * delta labeling (NEW / PERSISTING / RESOLVED), dogfood-log identity, sticky
+ * class reuse, and calibration tracking.
+ *
+ * Classification invariant (restated, ADR-0012): a model classification is a
+ * draw from a distribution, not a deterministic function of the payload — and
+ * current-generation models expose no sampling knob to change that. Identical
+ * fingerprints therefore classify identically WITHIN a PR conversation, where
+ * the fps:v2 comment block makes the first recorded verdict sticky;
+ * across contexts, expect a stable distribution rather than a stable class.
  *
  * Pure: no IO, no clock, no randomness.
  */

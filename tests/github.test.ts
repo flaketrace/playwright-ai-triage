@@ -133,12 +133,15 @@ describe('postGithubComment', () => {
   it('appends the fingerprint block after the markdown when fingerprints are given', async () => {
     const f = fetchMock();
     await postGithubComment('**summary**', null, env(), f, {
-      fingerprints: ['3f9a1c2b4d5e', '90ab12cd34ef'],
+      fingerprints: [
+        { fingerprint: '3f9a1c2b4d5e', class: 'REAL_BUG', confidence: 0.9 },
+        { fingerprint: '90ab12cd34ef' },
+      ],
     });
     const post = f.mock.calls.find((c) => c[1]?.method === 'POST');
     const body = JSON.parse(post![1].body).body as string;
     expect(body).toMatch(
-      /\*\*summary\*\*\n<!-- playwright-ai-triage:fps:v1 3f9a1c2b4d5e 90ab12cd34ef -->$/,
+      /\*\*summary\*\*\n<!-- playwright-ai-triage:fps:v2 3f9a1c2b4d5e:REAL_BUG:0\.90 90ab12cd34ef -->$/,
     );
   });
 
@@ -147,15 +150,15 @@ describe('postGithubComment', () => {
     // renderer budgets markdown to ~60k; a catastrophic run's fingerprint set must
     // not push the total over the API cap (422 ⇒ no comment at all on the worst runs)
     const markdown = 'x'.repeat(59_990);
-    const fingerprints = Array.from({ length: 600 }, (_, i) =>
-      `${i}`.padStart(12, 'a').slice(0, 12),
-    );
+    const fingerprints = Array.from({ length: 600 }, (_, i) => ({
+      fingerprint: `${i}`.padStart(12, 'a').slice(0, 12),
+    }));
     const res = await postGithubComment(markdown, null, env(), f, { fingerprints });
     expect(res.ok).toBe(true);
     const body = JSON.parse(f.mock.calls.find((c) => c[1]?.method === 'POST')![1].body)
       .body as string;
     expect(body.length).toBeLessThan(65_536);
-    expect(body).not.toContain(':fps:v1'); // no block beats a truncated (false-RESOLVED) block
+    expect(body).not.toContain(':fps:v'); // no block beats a truncated (false-RESOLVED) block
     expect(body).toContain('x'.repeat(100)); // markdown itself untouched
   });
 

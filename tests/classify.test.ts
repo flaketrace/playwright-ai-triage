@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ResolvedConfig } from '../src/config.js';
-import { classifyFailures, type ClassifierClient } from '../src/classify.js';
+import { classifyFailures, type ClassifierClient, type StickyClassMap } from '../src/classify.js';
+import { failureFingerprint } from '../src/fingerprint.js';
 import type { FailurePayload } from '../src/types.js';
 
 const basePayload = (id: string, overrides: Partial<FailurePayload> = {}): FailurePayload => ({
@@ -237,5 +238,339 @@ describe('classifyFailures', () => {
     }));
     const res = await classifyFailures([basePayload('x')], config(), { client });
     expect(res.classified[0]!.classification.confidence).toBe(1);
+  });
+});
+
+describe('sticky reuse (R2 — D2 rules)', () => {
+  const stickyFor = (
+    payloads: FailurePayload[],
+    cls: Parameters<StickyClassMap['set']>[1]['class'] = 'ENV_ISSUE',
+    confidence = 0.8,
+  ): StickyClassMap =>
+    new Map(payloads.map((p) => [failureFingerprint(p), { class: cls, confidence }]));
+
+  it('reuses the stored class for a matching fingerprint without an API call', async () => {
+    const client = mockClient();
+    const known = basePayload('known');
+    const fresh = basePayload('fresh', { errorMessage: 'different failure shape' });
+    const sticky = stickyFor([known]);
+    const res = await classifyFailures([known, fresh], config(), { client, sticky });
+
+    const reusedEntry = res.classified.find((c) => c.payload.testId === 'known')!;
+    expect(reusedEntry.classification.class).toBe('ENV_ISSUE');
+    expect(reusedEntry.classification.confidence).toBe(0.8);
+    expect(reusedEntry.classification.why).toMatch(/previous run/);
+    expect(reusedEntry.reused).toBe(true);
+
+    // only the fresh payload reached the model
+    expect(parseCalls(client)).toHaveLength(1);
+    expect(JSON.stringify(parseCalls(client)[0])).not.toContain('"known"');
+    expect(res.notes.some((n) => n.includes('reused prior classification'))).toBe(true);
+  });
+
+  it('never reuses a stored UNCLASSIFIED (fail-closed states do not persist)', async () => {
+    const client = mockClient();
+    const p = basePayload('t1');
+    const sticky = stickyFor([p], 'UNCLASSIFIED', 0);
+    const res = await classifyFailures([p], config(), { client, sticky });
+    expect(parseCalls(client)).toHaveLength(1); // went to the model
+    expect(res.classified[0]!.classification.class).toBe('REAL_BUG');
+    expect(res.classified[0]!.reused).toBeUndefined();
+  });
+
+  it('heuristic local verdicts win over sticky (deterministic + free beats stored)', async () => {
+    const client = mockClient();
+    const p = basePayload('flaky1', {
+      retries: [
+        { attempt: 0, status: 'failed' },
+        { attempt: 1, status: 'passed' },
+      ],
+      retryThenPassed: true,
+    });
+    const sticky = stickyFor([p], 'REAL_BUG', 0.9);
+    const res = await classifyFailures([p], config(), { client, sticky });
+    expect(res.classified[0]!.classification.class).toBe('FLAKY');
+    expect(res.classified[0]!.reused).toBeUndefined();
+    expect(parseCalls(client)).toHaveLength(0);
+  });
+
+  it('ignores sticky on keyless runs', async () => {
+    const client = mockClient();
+    const p = basePayload('t1');
+    const sticky = stickyFor([p]);
+    const res = await classifyFailures([p], config({ apiKey: undefined }), { client, sticky });
+    expect(res.classified[0]!.classification.class).toBe('UNCLASSIFIED');
+    expect(res.classified[0]!.reused).toBeUndefined();
+    expect(parseCalls(client)).toHaveLength(0);
+    expect(res.notes.some((n) => n.includes('reused prior classification'))).toBe(false);
+  });
+
+  it('ignores sticky in dryRun', async () => {
+    const client = mockClient();
+    const p = basePayload('t1');
+    const sticky = stickyFor([p], 'REAL_BUG', 0.9);
+    const res = await classifyFailures([p], config({ dryRun: true }), { client, sticky });
+    expect(res.classified[0]!.classification.why).toContain('dry-run');
+    expect(res.classified[0]!.reused).toBeUndefined();
+    expect(parseCalls(client)).toHaveLength(0);
+    expect(res.notes.some((n) => n.includes('reused prior classification'))).toBe(false);
+  });
+
+  it('reused failures do not consume the maxFailures budget', async () => {
+    const client = mockClient();
+    const known = basePayload('known');
+    const fresh = basePayload('fresh', { errorMessage: 'different failure shape' });
+    const sticky = stickyFor([known]);
+    const res = await classifyFailures([known, fresh], config({ maxFailures: 1 }), {
+      client,
+      sticky,
+    });
+    expect(res.overflowCount).toBe(0);
+    const freshEntry = res.classified.find((c) => c.payload.testId === 'fresh')!;
+    expect(freshEntry.classification.class).toBe('REAL_BUG');
+  });
+});
+
+describe('vote-on-first (D6 — majority of 3 draws)', () => {
+  /** Client whose responses cycle per call: draw i answers with classes[i % n]. */
+  const votingClient = (
+    perDraw: { class: string; confidence: number }[],
+  ): ClassifierClient & { parse: ReturnType<typeof vi.fn> } => {
+    let call = 0;
+    const parse = vi.fn(async (params: { messages: { content: string }[] }) => {
+      const ids = [...params.messages[0]!.content.matchAll(/"testId":\s*"([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      const draw = perDraw[call % perDraw.length]!;
+      call += 1;
+      return {
+        parsed_output: {
+          classifications: ids.map((testId) => ({
+            testId,
+            class: draw.class,
+            confidence: draw.confidence,
+            why: `draw says ${draw.class}`,
+          })),
+        },
+        usage: { input_tokens: 1000, output_tokens: 200 },
+        stop_reason: 'end_turn',
+      };
+    });
+    return { messages: { parse } } as unknown as ClassifierClient & {
+      parse: ReturnType<typeof vi.fn>;
+    };
+  };
+
+  it('issues 3 draws per batch and records the 2/3 majority with mean-of-majority confidence', async () => {
+    const client = votingClient([
+      { class: 'REAL_BUG', confidence: 0.7 },
+      { class: 'ENV_ISSUE', confidence: 0.9 },
+      { class: 'REAL_BUG', confidence: 0.8 },
+    ]);
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(parseCalls(client)).toHaveLength(3);
+    const c = res.classified[0]!;
+    expect(c.classification.class).toBe('REAL_BUG');
+    expect(c.classification.confidence).toBeCloseTo(0.75, 5);
+    expect(c.draws).toHaveLength(3);
+    expect(c.draws!.map((d) => d.class)).toEqual(['REAL_BUG', 'ENV_ISSUE', 'REAL_BUG']);
+  });
+
+  it('a unanimous 3/3 keeps the class with mean confidence', async () => {
+    const client = votingClient([
+      { class: 'FLAKY', confidence: 0.6 },
+      { class: 'FLAKY', confidence: 0.7 },
+      { class: 'FLAKY', confidence: 0.8 },
+    ]);
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('FLAKY');
+    expect(res.classified[0]!.classification.confidence).toBeCloseTo(0.7, 5);
+  });
+
+  it('a 3-way split fails closed to UNCLASSIFIED naming the split', async () => {
+    const client = votingClient([
+      { class: 'REAL_BUG', confidence: 0.7 },
+      { class: 'ENV_ISSUE', confidence: 0.9 },
+      { class: 'SELECTOR_DRIFT', confidence: 0.8 },
+    ]);
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    const c = res.classified[0]!;
+    expect(c.classification.class).toBe('UNCLASSIFIED');
+    expect(c.classification.confidence).toBe(0);
+    expect(c.classification.why).toMatch(
+      /no majority across 3 draws \(REAL_BUG \/ ENV_ISSUE \/ SELECTOR_DRIFT\)/,
+    );
+  });
+
+  it('vote absent keeps single-draw behavior', async () => {
+    const client = mockClient();
+    await classifyFailures([basePayload('t1')], config(), { client });
+    expect(parseCalls(client)).toHaveLength(1);
+  });
+
+  it('sums usage across all draws into the cost', async () => {
+    const client = votingClient([
+      { class: 'REAL_BUG', confidence: 0.7 },
+      { class: 'REAL_BUG', confidence: 0.7 },
+      { class: 'REAL_BUG', confidence: 0.7 },
+    ]);
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    // 3 draws × (1000 in + 200 out) at Haiku pricing (1 / 5 per MTok)
+    expect(res.costUsd).toBeCloseTo(3 * (0.001 + 0.001), 6);
+  });
+
+  it('sticky reuse bypasses voting entirely (no draws for persisting fingerprints)', async () => {
+    const client = votingClient([{ class: 'REAL_BUG', confidence: 0.7 }]);
+    const known = basePayload('known');
+    const sticky = new Map([
+      [failureFingerprint(known), { class: 'ENV_ISSUE' as const, confidence: 0.8 }],
+    ]);
+    const res = await classifyFailures([known], config(), { client, sticky, vote: true });
+    expect(parseCalls(client)).toHaveLength(0);
+    expect(res.classified[0]!.reused).toBe(true);
+  });
+
+  it('a refused draw is skipped; majority of the surviving two agreeing draws wins', async () => {
+    let call = 0;
+    const parse = vi.fn(async (params: { messages: { content: string }[] }) => {
+      const ids = [...params.messages[0]!.content.matchAll(/"testId":\s*"([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      call += 1;
+      if (call === 2) {
+        return {
+          parsed_output: null,
+          usage: { input_tokens: 1000, output_tokens: 200 },
+          stop_reason: 'refusal',
+        };
+      }
+      return {
+        parsed_output: {
+          classifications: ids.map((testId) => ({
+            testId,
+            class: 'ENV_ISSUE',
+            confidence: 0.6,
+            why: 'draw',
+          })),
+        },
+        usage: { input_tokens: 1000, output_tokens: 200 },
+        stop_reason: 'end_turn',
+      };
+    });
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('ENV_ISSUE');
+    expect(res.notes.some((n) => n.includes('refusal on a vote draw'))).toBe(true);
+  });
+
+  it('a schema-invalid draw is skipped with a note; survivors still form the majority', async () => {
+    let call = 0;
+    const parse = vi.fn(async (params: { messages: { content: string }[] }) => {
+      const ids = [...params.messages[0]!.content.matchAll(/"testId":\s*"([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      call += 1;
+      if (call === 3) {
+        return {
+          parsed_output: null,
+          usage: { input_tokens: 1000, output_tokens: 200 },
+          stop_reason: 'end_turn',
+        };
+      }
+      return {
+        parsed_output: {
+          classifications: ids.map((testId) => ({
+            testId,
+            class: 'FLAKY',
+            confidence: 0.7,
+            why: 'draw',
+          })),
+        },
+        usage: { input_tokens: 1000, output_tokens: 200 },
+        stop_reason: 'end_turn',
+      };
+    });
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('FLAKY');
+    expect(res.notes.some((n) => n.includes('no schema-valid output for a vote draw'))).toBe(true);
+  });
+
+  it('all three draws failing falls closed exactly like the single-draw error path', async () => {
+    const parse = vi.fn(async () => {
+      throw new Error('down');
+    });
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('UNCLASSIFIED');
+    expect(res.classified[0]!.classification.why).toBe('classifier API error');
+  });
+
+  it('a payload absent from every surviving draw is UNCLASSIFIED', async () => {
+    const parse = vi.fn(async () => ({
+      parsed_output: { classifications: [] },
+      usage: { input_tokens: 1000, output_tokens: 200 },
+      stop_reason: 'end_turn',
+    }));
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('UNCLASSIFIED');
+    expect(res.classified[0]!.classification.why).toBe('no schema-valid classification returned');
+  });
+
+  it('a 1-1 tie across two surviving draws fails closed naming the split', async () => {
+    let call = 0;
+    const parse = vi.fn(async (params: { messages: { content: string }[] }) => {
+      const ids = [...params.messages[0]!.content.matchAll(/"testId":\s*"([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      call += 1;
+      if (call === 3) throw new Error('boom');
+      const cls = call === 1 ? 'REAL_BUG' : 'ENV_ISSUE';
+      return {
+        parsed_output: {
+          classifications: ids.map((testId) => ({
+            testId,
+            class: cls,
+            confidence: 0.8,
+            why: 'draw',
+          })),
+        },
+        usage: { input_tokens: 1000, output_tokens: 200 },
+        stop_reason: 'end_turn',
+      };
+    });
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    const c = res.classified[0]!;
+    expect(c.classification.class).toBe('UNCLASSIFIED');
+    expect(c.classification.why).toMatch(/no majority across 2 draws/);
+  });
+
+  it('a failed draw (API error) falls back to majority of the remaining two when they agree', async () => {
+    let call = 0;
+    const parse = vi.fn(async (params: { messages: { content: string }[] }) => {
+      const ids = [...params.messages[0]!.content.matchAll(/"testId":\s*"([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      call += 1;
+      if (call === 2) throw new Error('boom');
+      return {
+        parsed_output: {
+          classifications: ids.map((testId) => ({
+            testId,
+            class: 'REAL_BUG',
+            confidence: 0.8,
+            why: 'draw',
+          })),
+        },
+        usage: { input_tokens: 1000, output_tokens: 200 },
+        stop_reason: 'end_turn',
+      };
+    });
+    const client = { messages: { parse } } as unknown as ClassifierClient;
+    const res = await classifyFailures([basePayload('t1')], config(), { client, vote: true });
+    expect(res.classified[0]!.classification.class).toBe('REAL_BUG');
+    expect(res.classified[0]!.classification.confidence).toBeCloseTo(0.8, 5);
   });
 });

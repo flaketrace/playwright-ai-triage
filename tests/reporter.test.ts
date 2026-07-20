@@ -75,6 +75,10 @@ describe('AiTriageReporter', () => {
     vi.stubEnv('GITHUB_REPOSITORY', '');
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GITHUB_REF', '');
+    // hermetic: Actions sets GITHUB_EVENT_PATH on every run, and detectGithubContext
+    // falls back to reading that payload for the PR number — unstubbed, a CI run's
+    // own PR event leaks in and non-PR-context tests silently see a real PR
+    vi.stubEnv('GITHUB_EVENT_PATH', '');
     // hermetic: a dev shell's real sink must never receive fixture envelopes
     vi.stubEnv('AI_TRIAGE_SINK_URL', '');
     vi.stubEnv('AI_TRIAGE_SINK_TOKEN', '');
@@ -410,7 +414,7 @@ describe('AiTriageReporter', () => {
       const body = JSON.parse(patch![1].body).body as string;
       expect(body).toContain('🆕'); // current failure not in previous set
       expect(body).toContain('2 failure(s) resolved since the last run');
-      expect(body).toMatch(/<!-- playwright-ai-triage:fps:v1 [0-9a-f]{12} -->/);
+      expect(body).toMatch(/<!-- playwright-ai-triage:fps:v2 [0-9a-f]{12}:REAL_BUG:0\.90 -->/);
     });
 
     it('marks a persisting failure without re-announcing it', async () => {
@@ -420,7 +424,7 @@ describe('AiTriageReporter', () => {
       const r1 = new AiTriageReporter({}, { client: okClient(), fetchImpl: seed });
       await run(r1, [[fakeTest('a'), failedResult()]]);
       const seeded = JSON.parse(mutations(seed)[0]![1].body).body as string;
-      const fp = seeded.match(/:fps:v1 ([0-9a-f]{12}) -->/)![1];
+      const fp = seeded.match(/:fps:v2 ([0-9a-f]{12}):REAL_BUG:0\.90 -->/)![1];
 
       const fetchImpl = ghFetch([{ id: 11, body: seeded }]);
       const r2 = new AiTriageReporter({}, { client: okClient(), fetchImpl });
@@ -440,7 +444,7 @@ describe('AiTriageReporter', () => {
       const body = JSON.parse(mutations(fetchImpl)[0]![1].body).body as string;
       expect(body).not.toContain('🆕');
       expect(body).not.toContain('⏳');
-      expect(body).toMatch(/:fps:v1 [0-9a-f]{12} -->/); // new state block still embedded
+      expect(body).toMatch(/:fps:v2 [0-9a-f]{12}:REAL_BUG:0\.90 -->/); // new state block still embedded
     });
 
     it('flips the previous red comment to all-clear on a green run (R1)', async () => {
@@ -459,7 +463,7 @@ describe('AiTriageReporter', () => {
       const body = JSON.parse(patch![1].body).body as string;
       expect(body).toContain('all clear ✅');
       expect(body).toContain('3 previously reported failure(s) resolved');
-      expect(body).toContain('<!-- playwright-ai-triage:fps:v1 -->'); // empty state block
+      expect(body).toContain('<!-- playwright-ai-triage:fps:v2 -->'); // empty state block
       expect(mutations(fetchImpl).some((c) => c[1]?.method === 'POST')).toBe(false);
     });
 
@@ -501,6 +505,109 @@ describe('AiTriageReporter', () => {
       const reporter = new AiTriageReporter({}, { client: okClient(), fetchImpl });
       const returned = await run(reporter, []);
       expect(returned).toBeUndefined();
+    });
+  });
+
+  describe('sticky reuse + vote orchestration (R2/D6)', () => {
+    const stubPrContext = () => {
+      vi.stubEnv('GITHUB_ACTIONS', 'true');
+      vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+      vi.stubEnv('GITHUB_REF', 'refs/pull/9/merge');
+      vi.stubEnv('GITHUB_TOKEN', 'tkn');
+    };
+
+    function ghFetch(existingComments: { id: number; body: string }[]) {
+      return vi.fn(async (_url: string, init?: { method?: string }) =>
+        !init?.method || init.method === 'GET'
+          ? { ok: true, status: 200, json: async () => existingComments }
+          : { ok: true, status: init.method === 'POST' ? 201 : 200, json: async () => ({}) },
+      );
+    }
+
+    const mutations = (f: ReturnType<typeof vi.fn>) =>
+      f.mock.calls.filter((c) => c[1]?.method === 'POST' || c[1]?.method === 'PATCH');
+
+    const parseCallCount = (client: ClassifierClient) =>
+      (client as unknown as { messages: { parse: ReturnType<typeof vi.fn> } }).messages.parse.mock
+        .calls.length;
+
+    it('reuses the prior class for a persisting fingerprint without any API call', async () => {
+      stubPrContext();
+      // learn the real fingerprint from our own emission
+      const seed = ghFetch([]);
+      const r1 = new AiTriageReporter({}, { client: okClient(), fetchImpl: seed });
+      await run(r1, [[fakeTest('a'), failedResult()]]);
+      const seeded = JSON.parse(mutations(seed)[0]![1].body).body as string;
+      const fp = seeded.match(/:fps:v2 ([0-9a-f]{12}):/)![1]!;
+
+      // previous comment stores ENV_ISSUE@0.80 for that fingerprint
+      const previous = `<!-- playwright-ai-triage -->\nold\n<!-- playwright-ai-triage:fps:v2 ${fp}:ENV_ISSUE:0.80 -->`;
+      const fetchImpl = ghFetch([{ id: 11, body: previous }]);
+      const client = okClient();
+      const r2 = new AiTriageReporter({}, { client, fetchImpl });
+      await run(r2, [[fakeTest('a'), failedResult()]]);
+
+      expect(parseCallCount(client)).toBe(0); // no API call at all
+      // single-lookup invariant: the early fetch is reused for delta + upsert
+      expect(
+        fetchImpl.mock.calls.filter((c) => !c[1]?.method || c[1].method === 'GET'),
+      ).toHaveLength(1);
+      const body = JSON.parse(mutations(fetchImpl)[0]![1].body).body as string;
+      expect(body).toContain('⏳');
+      expect(body).toContain('reused prior classification');
+      // the class persists forward into the fresh block
+      expect(body).toContain(`${fp}:ENV_ISSUE:0.80`);
+    });
+
+    it('votes new fingerprints with 3 draws under PR context', async () => {
+      stubPrContext();
+      const client = okClient();
+      const reporter = new AiTriageReporter({}, { client, fetchImpl: ghFetch([]) });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      expect(parseCallCount(client)).toBe(3);
+    });
+
+    it('does not vote outside github flows (single draw)', async () => {
+      const client = okClient();
+      const reporter = new AiTriageReporter({ outputs: ['stdout'] }, { client });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      expect(parseCallCount(client)).toBe(1);
+    });
+
+    it('classifies normally (voted) when the previous-comment fetch fails', async () => {
+      stubPrContext();
+      const fetchImpl = vi.fn(async (_url: string, init?: { method?: string }) => {
+        if (!init?.method || init.method === 'GET') throw new Error('gh down');
+        return { ok: true, status: 201, json: async () => ({}) };
+      });
+      const client = okClient();
+      const reporter = new AiTriageReporter({}, { client, fetchImpl });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      expect(parseCallCount(client)).toBe(3); // vote still on; sticky just empty
+      expect(warns.join('\n')).toContain('github'); // posting failure is a warn, never a throw
+    });
+
+    it('stays on a single draw for keyed non-PR CI runs (push/schedule — nothing to freeze)', async () => {
+      vi.stubEnv('GITHUB_ACTIONS', 'true');
+      vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+      vi.stubEnv('GITHUB_REF', 'refs/heads/main'); // no PR context
+      vi.stubEnv('GITHUB_TOKEN', 'tkn');
+      const fetchImpl = vi.fn();
+      const client = okClient();
+      const reporter = new AiTriageReporter({}, { client, fetchImpl });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      expect(parseCallCount(client)).toBe(1); // no vote, no triple spend
+    });
+
+    it('emits a class-less block in dryRun so fixture classes never poison sticky state', async () => {
+      stubPrContext();
+      const fetchImpl = ghFetch([]);
+      const client = okClient();
+      const reporter = new AiTriageReporter({ dryRun: true }, { client, fetchImpl });
+      await run(reporter, [[fakeTest('a'), failedResult()]]);
+      expect(parseCallCount(client)).toBe(0);
+      const body = JSON.parse(mutations(fetchImpl)[0]![1].body).body as string;
+      expect(body).toMatch(/:fps:v2 [0-9a-f]{12} -->/); // bare token, no class
     });
   });
 });

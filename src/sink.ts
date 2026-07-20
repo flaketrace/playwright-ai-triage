@@ -1,4 +1,5 @@
 import { failureFingerprint } from './fingerprint.js';
+import type { ClassifiedFailure } from './classify.js';
 import type { Classification, FailurePayload } from './types.js';
 
 // Deliberately its own fetch type: unlike the GitHub/Slack ones it accepts an
@@ -23,6 +24,10 @@ export interface SinkFailure {
   fingerprint: string;
   payload: FailurePayload;
   classification: Classification;
+  /** present (true) when the class was reused from the previous run's block (R2 sticky) */
+  reused?: boolean;
+  /** per-draw results when vote-on-first ran (D6) — consumers get real distributions */
+  draws?: { class: Classification['class']; confidence: number }[];
 }
 
 export interface SinkEnvelope {
@@ -48,7 +53,7 @@ export interface SinkEnvelope {
 }
 
 export function buildSinkEnvelope(
-  classified: { payload: FailurePayload; classification: Classification }[],
+  classified: ClassifiedFailure[],
   costUsd: number | null,
   shard: { current: number; total: number } | null,
   env: Env,
@@ -78,10 +83,12 @@ export function buildSinkEnvelope(
       ...(prMatch ? { prNumber: Number(prMatch[1]) } : {}),
     },
     summary: { failures: classified.length, counts, costUsd, model },
-    failures: classified.map(({ payload, classification }) => ({
+    failures: classified.map(({ payload, classification, reused, draws }) => ({
       fingerprint: failureFingerprint(payload),
       payload,
       classification,
+      ...(reused ? { reused: true } : {}),
+      ...(draws?.length ? { draws } : {}),
     })),
   };
 }

@@ -7,10 +7,10 @@ import type {
   TestResult,
 } from '@playwright/test/reporter';
 
-import { classifyFailures, type ClassifierClient } from './classify.js';
+import { classifyFailures, type ClassifierClient, type StickyClassMap } from './classify.js';
 import { resolveConfig, type ResolvedConfig } from './config.js';
 import { collectFailure } from './collect.js';
-import { computeDelta, parseFingerprintBlock } from './delta.js';
+import { computeDelta, parseFingerprintBlock, type FingerprintEntry } from './delta.js';
 import { failureFingerprint } from './fingerprint.js';
 import {
   renderAllClearSummary,
@@ -18,6 +18,7 @@ import {
   type DeltaContext,
 } from './render/markdown.js';
 import {
+  detectGithubContext,
   fetchPreviousComment,
   postGithubComment,
   type FetchPreviousResult,
@@ -35,8 +36,11 @@ function deltaContext(
   fingerprintByTestId: Record<string, string>,
 ): { delta?: DeltaContext } {
   if ('skipReason' in previous || !previous.found) return {};
-  const previousFps = parseFingerprintBlock(previous.found.body);
-  const delta = computeDelta(Object.values(fingerprintByTestId), previousFps);
+  const previousEntries = parseFingerprintBlock(previous.found.body);
+  const delta = computeDelta(
+    Object.values(fingerprintByTestId),
+    previousEntries === null ? null : previousEntries.map((e) => e.fingerprint),
+  );
   if (!delta) return {}; // pre-block comment: no delta info, render unlabeled
   const labelByTestId: DeltaContext['labelByTestId'] = {};
   for (const [testId, fp] of Object.entries(fingerprintByTestId)) {
@@ -123,8 +127,43 @@ export default class AiTriageReporter implements Reporter {
         }),
       );
 
+      // R2/D6 (ADR-0012): runs that will write class-carrying state into the PR
+      // comment fetch the previous comment FIRST — persisting fingerprints reuse
+      // their stored class (no API call), and fresh fingerprints are classified
+      // by majority-of-3 before their class gets frozen into the block. Keyless
+      // and dryRun runs never freeze classes, so they neither fetch nor vote.
+      // detectGithubContext keeps scheduled/push CI runs (github output enabled,
+      // but no PR to hold state) on single draws — voting there would triple
+      // token spend with nothing ever frozen. A transient fetch failure on a
+      // real PR keeps voting on: the block may still post via the upsert search.
+      const stickyEligible =
+        config.outputs.includes('github') &&
+        Boolean(config.apiKey) &&
+        !config.dryRun &&
+        !('skipReason' in detectGithubContext(process.env));
+      let previous: FetchPreviousResult | undefined;
+      let sticky: StickyClassMap | undefined;
+      if (stickyEligible) {
+        previous = await fetchPreviousComment(this.shard, process.env, this.internals.fetchImpl);
+        if (!('skipReason' in previous) && previous.found) {
+          const previousEntries = parseFingerprintBlock(previous.found.body);
+          if (previousEntries) {
+            sticky = new Map(
+              previousEntries
+                .filter(
+                  (e): e is Required<FingerprintEntry> =>
+                    e.class !== undefined && e.confidence !== undefined,
+                )
+                .map((e) => [e.fingerprint, { class: e.class, confidence: e.confidence }]),
+            );
+          }
+        }
+      }
+
       const { classified, costUsd, notes } = await classifyFailures(payloads, config, {
         ...(this.internals.client ? { client: this.internals.client } : {}),
+        ...(sticky ? { sticky } : {}),
+        ...(stickyEligible ? { vote: true } : {}),
       });
 
       await this.postSink(classified, costUsd ?? null, config);
@@ -171,28 +210,36 @@ export default class AiTriageReporter implements Reporter {
       if (config.dryRun) console.log(`${TAG} dry-run mode — no API calls were made.`);
 
       if (config.outputs.includes('github')) {
-        // R3: the previous comment's fingerprint block is the only cross-run state
-        const previous = await fetchPreviousComment(
-          this.shard,
-          process.env,
-          this.internals.fetchImpl,
-        );
+        // R3: the previous comment's fingerprint block is the only cross-run
+        // state — already fetched above on sticky-eligible runs, fetched here
+        // otherwise (dryRun posts too, with a class-less block).
+        const prev =
+          previous ??
+          (await fetchPreviousComment(this.shard, process.env, this.internals.fetchImpl));
         const fingerprintByTestId: Record<string, string> = {};
         for (const { payload } of classified) {
           fingerprintByTestId[payload.testId] = failureFingerprint(payload);
         }
         const markdown = renderMarkdownSummary(classified, {
           ...renderContext,
-          ...deltaContext(previous, fingerprintByTestId),
+          ...deltaContext(prev, fingerprintByTestId),
         });
+        // dryRun must not freeze fixture classes into state a later real run
+        // would reuse — its block carries bare fingerprints (delta still works).
+        const blockEntries: FingerprintEntry[] = classified.map(({ payload, classification }) => ({
+          fingerprint: fingerprintByTestId[payload.testId]!,
+          ...(config.dryRun
+            ? {}
+            : { class: classification.class, confidence: classification.confidence }),
+        }));
         const result = await postGithubComment(
           markdown,
           this.shard,
           process.env,
           this.internals.fetchImpl,
           {
-            fingerprints: Object.values(fingerprintByTestId),
-            ...('found' in previous ? { existing: previous.found ?? null } : {}),
+            fingerprints: blockEntries,
+            ...('found' in prev ? { existing: prev.found ?? null } : {}),
           },
         );
         if (!result.ok) console.warn(`${TAG} github output skipped: ${result.note}`);

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-import { renderFingerprintBlock } from '../delta.js';
+import { renderFingerprintBlock, type FingerprintEntry } from '../delta.js';
 
 type Env = Record<string, string | undefined>;
 type Shard = { current: number; total: number } | null;
@@ -121,8 +121,9 @@ export interface PostOptions {
    * `undefined` makes this function run the marker search itself.
    */
   existing?: { id: number } | null;
-  /** R3 state: appended after the markdown as an invisible fingerprint block. */
-  fingerprints?: string[];
+  /** R2/R3 state: appended after the markdown as an invisible fps:v2 block
+   * (fingerprint + optional class/confidence per entry — sticky-class source). */
+  fingerprints?: FingerprintEntry[];
 }
 
 /**

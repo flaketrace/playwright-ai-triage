@@ -63,7 +63,9 @@ env-only and never belong in a config file).
 When `sinkUrl` is set, the reporter POSTs one JSON document per run to that URL after
 classification: schema `ai-triage-sink/v1` with run metadata (shard, and repository / branch /
 commit / PR number when running in GitHub Actions), a per-class summary with the run's API
-cost, and every failure's payload, classification, and stable fingerprint. It fires on keyless
+cost, and every failure's payload, classification, and stable fingerprint (plus, when
+applicable, `reused: true` for classifications carried over from the previous run and `draws`
+with the per-draw results wherever voting ran). It fires on keyless
 runs too (statuses and fingerprints are still useful data), is skipped in `dryRun`, times out
 after 10 seconds, and a sink failure warns without ever affecting the build. Nothing is sent
 when `sinkUrl` is unset.
@@ -78,6 +80,14 @@ Failures a script can decide never reach the API at all — they are classified 
 free: passed-on-retry (`FLAKY`), pure network-error signatures (`ENV_ISSUE`), and explicit
 expired-credential errors (`ENV_ISSUE`). The model is reserved for failures that need judgment,
 such as assertion diffs and locator timeouts (selector drift vs flake).
+
+On pull requests, a failure that already appeared in the previous run (same fingerprint) with a
+recorded verdict is not re-sent either: the verdict is reused from the reporter's own previous
+comment, for free, so a persisting failure keeps one stable class instead of being re-judged
+every push. (Fail-closed `UNCLASSIFIED` outcomes are never reused — those failures are
+re-judged until a verdict lands.) Failures a PR run judges for the first time are classified
+three times and the majority is recorded — roughly triple the per-failure cost on first sight,
+repaid by later pushes reusing the recorded verdict at no cost.
 
 Sent to the Anthropic API per remaining failure (text only, secret-patterns redacted): test id, test
 title, file path, line number, error message, stack (truncated, `node_modules` frames
