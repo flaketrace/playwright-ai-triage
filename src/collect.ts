@@ -38,8 +38,15 @@ function deepestFailedStep(steps: TestStep[]): string | undefined {
 }
 
 /**
- * Extract the `# Page snapshot` section from Playwright's auto-attached
- * error-context markdown (aria snapshot). Absent/malformed → undefined.
+ * Extract the aria snapshot from Playwright's auto-attached error-context
+ * markdown. Absent/malformed → undefined.
+ *
+ * One Playwright version emits BOTH layouts depending on the assertion that
+ * failed — captured from 1.61.1: a locator timeout writes the snapshot as an
+ * unheaded ```yaml fence, while a `toMatchAriaSnapshot` mismatch writes it
+ * under a `# Page snapshot` heading. So neither shape is "legacy", and keying on
+ * the heading alone would have dropped the snapshot for the captured locator
+ * timeout — the case where it is most wanted (drift vs flake).
  */
 function domSnippetFrom(result: TestResult): string | undefined {
   const attachment = result.attachments.find(
@@ -53,12 +60,17 @@ function domSnippetFrom(result: TestResult): string | undefined {
         ? fs.readFileSync(attachment.path, 'utf8')
         : undefined;
     if (!md) return undefined;
-    // Current format (Playwright ≳1.53): the aria snapshot is a fenced ```yaml
-    // block. It is the only yaml block in error-context (error details are a bare
-    // ``` block, test source is ```ts).
+    // Take the first ```yaml fence. This relies on the snapshot being the only
+    // yaml-tagged fence present: error details are bare-fenced and test source is
+    // ```ts. Checked on 1.61.1 for a locator timeout and a toMatchAriaSnapshot
+    // mismatch — notably the latter renders an aria DIFF inside error details,
+    // which looks like a snapshot but is bare-fenced, so first-match skips it.
+    // Two assertion types is not a proof for every failure mode; if a document
+    // ever carries an earlier yaml fence, prefer locating `# Page snapshot` first.
     const yaml = md.match(/```ya?ml\s*\n([\s\S]*?)```/i);
     if (yaml?.[1]) return yaml[1].trim() || undefined;
-    // Legacy format: a `# Page snapshot` section (kept for older Playwright).
+    // Defensive: a `# Page snapshot` section whose body is not yaml-fenced. No
+    // captured sample of this shape — it is a cheap guard, not a documented format.
     const match = md.match(/^# Page snapshot\s*$/im);
     if (!match || match.index === undefined) return undefined;
     const rest = md.slice(match.index + match[0].length);

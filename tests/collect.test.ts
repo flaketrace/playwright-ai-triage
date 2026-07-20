@@ -110,8 +110,9 @@ describe('collectFailure', () => {
   });
 
   it('reads the DOM snippet from the current Playwright error-context format (fenced yaml aria block)', () => {
-    // Playwright >= ~1.53 embeds the aria snapshot as a ```yaml block instead of
-    // a `# Page snapshot` section.
+    // A ```yaml aria block with no `# Page snapshot` heading. See the captured
+    // fixtures below: this is one of two layouts a single Playwright version
+    // emits, not a replacement for the heading form.
     const md = [
       '# Error details',
       '',
@@ -138,6 +139,181 @@ describe('collectFailure', () => {
     expect(p.domSnippet).toContain('button "Buy"');
     expect(p.domSnippet).not.toContain('Error: locator not found'); // not the error block
     expect(p.domSnippet).not.toContain('toBeVisible'); // not the test-source block
+  });
+
+  // The two fixtures below are error-context.md files captured from real chromium
+  // runs on Playwright 1.61.1 and pasted byte-for-byte. They exist because ONE
+  // Playwright version emits TWO layouts depending on which assertion failed,
+  // which no hand-authored fixture had shown: a locator timeout writes the aria
+  // snapshot as an unheaded ```yaml fence, a toMatchAriaSnapshot mismatch writes
+  // it under `# Page snapshot`. Both assert the EXACT extracted string — the
+  // snapshot is what reaches the model, so a partial match would let a regression
+  // that truncates it or leaks a neighbouring block through.
+  //
+  // Two details look like transcription errors and are not. `Location:` is the
+  // `test(` declaration, so its line differs from the caret in `# Test source`
+  // (which marks the failing assertion). Its column is 5 with the declaration at
+  // column 1 — both captured specs are unindented, so 5 is the `(` after `test`,
+  // not leading whitespace.
+  // And only the toMatchAriaSnapshot snapshot carries `[ref=]` handles and a
+  // `- generic [active]` root — that is Playwright's own difference between the
+  // two capture paths, not a trimmed fixture.
+
+  it('extracts the aria snapshot from a real 1.61.1 locator-timeout error-context', () => {
+    const md = [
+      '# Instructions',
+      '',
+      '- Following Playwright test failed.',
+      '- Explain why, be concise, respect Playwright best practices.',
+      '- Provide a snippet of code with the fix, if possible.',
+      '',
+      '# Test info',
+      '',
+      '- Name: drift.spec.ts >> locator times out on a real page',
+      '- Location: tests/drift.spec.ts:3:5',
+      '',
+      '# Error details',
+      '',
+      '```',
+      'Error: expect(locator).toBeVisible() failed',
+      '',
+      "Locator: getByTestId('submit-v1')",
+      'Expected: visible',
+      'Timeout: 1500ms',
+      'Error: element(s) not found',
+      '',
+      'Call log:',
+      '  - Expect "toBeVisible" with timeout 1500ms',
+      "  - waiting for getByTestId('submit-v1')",
+      '',
+      '```',
+      '',
+      '```yaml',
+      '- heading "Dashboard" [level=1]',
+      '- button "Send"',
+      '- navigation:',
+      '  - link "Alpha":',
+      '    - /url: /a',
+      '```',
+      '',
+      '# Test source',
+      '',
+      '```ts',
+      "  1  | import { test, expect } from '@playwright/test';",
+      '  2  | ',
+      "  3  | test('locator times out on a real page', async ({ page }) => {",
+      '  4  |   await page.setContent(`',
+      '  5  |     <html><body>',
+      '  6  |       <h1>Dashboard</h1>',
+      '  7  |       <button data-testid="submit-v2">Send</button>',
+      '  8  |       <nav><a href="/a">Alpha</a></nav>',
+      '  9  |     </body></html>',
+      '  10 |   `);',
+      "> 11 |   await expect(page.getByTestId('submit-v1')).toBeVisible({ timeout: 1500 });",
+      '     |                                               ^ Error: expect(locator).toBeVisible() failed',
+      '  12 | });',
+      '  13 | ',
+      '```',
+    ].join('\n');
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    // Nested indentation under `- navigation:` must survive: the model reads this
+    // as the page's structure. Note aria carries accessible names, not testids —
+    // `submit-v2` renders as `button "Send"` and the testid never appears.
+    expect(p.domSnippet).toBe(
+      [
+        '- heading "Dashboard" [level=1]',
+        '- button "Send"',
+        '- navigation:',
+        '  - link "Alpha":',
+        '    - /url: /a',
+      ].join('\n'),
+    );
+  });
+
+  it('extracts the aria snapshot from a real 1.61.1 toMatchAriaSnapshot error-context', () => {
+    const md = [
+      '# Instructions',
+      '',
+      '- Following Playwright test failed.',
+      '- Explain why, be concise, respect Playwright best practices.',
+      '- Provide a snippet of code with the fix, if possible.',
+      '',
+      '# Test info',
+      '',
+      '- Name: aria.spec.ts >> aria snapshot mismatch',
+      '- Location: tests/aria.spec.ts:3:5',
+      '',
+      '# Error details',
+      '',
+      '```',
+      'Error: expect(locator).toMatchAriaSnapshot(expected) failed',
+      '',
+      "Locator: locator('body')",
+      'Timeout: 5000ms',
+      '- Expected  - 2',
+      '+ Received  + 2',
+      '',
+      '- - heading "Totally Different" [level=1]',
+      '+ - heading "Dashboard" [level=1]',
+      '- - button "Cancel"',
+      '+ - button "Send"',
+      '',
+      'Call log:',
+      '  - Expect "toMatchAriaSnapshot" with timeout 5000ms',
+      "  - waiting for locator('body')",
+      '    14 × locator resolved to <body>…</body>',
+      '       - unexpected value "- heading "Dashboard" [level=1]',
+      '- button "Send""',
+      '',
+      '```',
+      '',
+      '# Page snapshot',
+      '',
+      '```yaml',
+      '- generic [active] [ref=e1]:',
+      '  - heading "Dashboard" [level=1] [ref=e2]',
+      '  - button "Send" [ref=e3]',
+      '```',
+      '',
+      '# Test source',
+      '',
+      '```ts',
+      "  1  | import { test, expect } from '@playwright/test';",
+      '  2  | ',
+      "  3  | test('aria snapshot mismatch', async ({ page }) => {",
+      '  4  |   await page.setContent(`',
+      '  5  |     <html><body>',
+      '  6  |       <h1>Dashboard</h1>',
+      '  7  |       <button data-testid="submit-v2">Send</button>',
+      '  8  |     </body></html>',
+      '  9  |   `);',
+      "> 10 |   await expect(page.locator('body')).toMatchAriaSnapshot(`",
+      '     |                                      ^ Error: expect(locator).toMatchAriaSnapshot(expected) failed',
+      '  11 |     - heading "Totally Different" [level=1]',
+      '  12 |     - button "Cancel"',
+      '  13 |   `);',
+      '  14 | });',
+      '  15 | ',
+      '```',
+    ].join('\n');
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    // This is the adversarial case for "take the first yaml fence": error details
+    // here contain an aria DIFF (`+ - button "Send"`) that looks like a snapshot.
+    // It is bare-fenced, not ```yaml, so extraction must still reach the real
+    // snapshot below — the one carrying [ref=] handles.
+    expect(p.domSnippet).toBe(
+      [
+        '- generic [active] [ref=e1]:',
+        '  - heading "Dashboard" [level=1] [ref=e2]',
+        '  - button "Send" [ref=e3]',
+      ].join('\n'),
+    );
   });
 
   it('strips ANSI escape codes from error text and stack (real Playwright output is colourised)', () => {
