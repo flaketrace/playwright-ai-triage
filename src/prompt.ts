@@ -7,12 +7,12 @@ import type { FailurePayload } from './types.js';
  *
  * v002 (first dogfood round): deterministic element-absence was systematically
  * misclassified as SELECTOR_DRIFT when the true cause was a feature flag /
- * environment config (0/5 on the baseline batch). ENV_ISSUE now covers
- * config-disabled surfaces, the ambiguity rule gains the absence hard case,
- * drift requires positive rename evidence for high confidence, and one
- * synthetic example is replaced with the real (sanitized) baseline case.
+ * environment config. ENV_ISSUE now covers config-disabled surfaces, the
+ * ambiguity rule gains the absence hard case, drift requires positive rename
+ * evidence for high confidence, and one synthetic example is replaced with the
+ * real (sanitized) baseline case.
  *
- * v003 (16-fixture eval round): the model read an element's mere ABSENCE from
+ * v003 (fixture eval round): the model read an element's mere ABSENCE from
  * the DOM snapshot as positive rename evidence (calling SELECTOR_DRIFT on a bare
  * page). Rule 3 makes absence-is-not-evidence explicit. A broader confidence-cap
  * rewrite was tried in the same round and REVERTED — it over-hedged (zero-evidence
@@ -20,11 +20,11 @@ import type { FailurePayload } from './types.js';
  * without lowering the genuinely-overconfident ones, so v003 keeps rule 3 alone.
  *
  * v004 (backend-outage dogfood round): backend HTTP 5xx/409 on setup/seed calls
- * was systematically misclassified as REAL_BUG (baseline 46%/11 with ~5 false
- * REAL_BUG alarms per run) because the taxonomy listed bare "API 4xx/5xx from the
- * app under test" as REAL_BUG evidence. v004 makes server errors ENV_ISSUE by
- * default (REAL_BUG only when the failing status is the exact endpoint the test
- * asserts on and tied to the code under test), adds a batch-wide-outage rule,
+ * was systematically misclassified as REAL_BUG, with false alarms on most runs,
+ * because the taxonomy listed bare "API 4xx/5xx from the app under test" as
+ * REAL_BUG evidence. v004 makes server errors ENV_ISSUE by default (REAL_BUG
+ * only when the failing status is the exact endpoint the test asserts on and
+ * tied to the code under test), adds a batch-wide-outage rule,
  * extends the absence rule to seeded/expected entities, and adds transport-drop
  * signals. Paired with a deterministic transient-retry heuristic in heuristics.ts.
  *

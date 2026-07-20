@@ -34,7 +34,7 @@ export default defineConfig({
 ```
 
 One line in your config, `ANTHROPIC_API_KEY` in your CI env — that's the whole setup.
-(Measured on a clean machine: install → first triage in well under a minute, plus the usual
+(On a clean machine: install → first triage in well under a minute, plus the usual
 one-time Playwright browser download.)
 
 ## Configuration
