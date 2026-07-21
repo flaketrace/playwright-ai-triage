@@ -1,7 +1,9 @@
+import path from 'node:path';
+
 import type { TestCase, TestResult } from '@playwright/test/reporter';
 import { describe, expect, it } from 'vitest';
 
-import { collectFailure } from '../src/collect.js';
+import { collectFailure, truncateSnapshot } from '../src/collect.js';
 
 function fakeTest(overrides: Partial<Record<string, unknown>> = {}): TestCase {
   return {
@@ -536,5 +538,121 @@ describe('repo-relative file paths', () => {
     const t = fakeTest({ location: { file: '/repo/..data/x.spec.ts', line: 3, column: 1 } });
     const p = collectFailure(t, fakeResult(), { ...opts, rootDir: '/repo' });
     expect(p.file).toBe('..data/x.spec.ts');
+  });
+
+  // An aria snapshot is ordered top-of-page first, so a head-only truncation keeps
+  // the static chrome (banner, nav) and drops the failure state. Measured on a
+  // ~3000-char snapshot, the spinner, the loading text and the error dialog all
+  // fell outside a 1500-char head — leaving the model to conclude "the page
+  // loaded".
+  const snapshotWithFailureStateAtTheEnd = [
+    '- generic [ref=e1]:',
+    '  - banner [ref=e8]:',
+    ...Array.from(
+      { length: 120 },
+      (_, i) => `    - link [ref=e${i + 20}] [cursor=pointer]: Nav ${i}`,
+    ),
+    '  - dialog [ref=e155]:',
+    '    - generic [ref=e166]: Request failed',
+  ].join('\n');
+
+  it('keeps the tail of an over-budget DOM snippet — the failure state sits at the end', () => {
+    const md = ['# Page snapshot', '', '```yaml', snapshotWithFailureStateAtTheEnd, '```'].join(
+      '\n',
+    );
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    expect(snapshotWithFailureStateAtTheEnd.length).toBeGreaterThan(1500);
+    expect((p.domSnippet ?? '').length).toBeLessThanOrEqual(1500);
+    expect(p.domSnippet).toContain('Request failed');
+  });
+
+  it('keeps the head of an over-budget DOM snippet too — page identity is evidence', () => {
+    const md = ['# Page snapshot', '', '```yaml', snapshotWithFailureStateAtTheEnd, '```'].join(
+      '\n',
+    );
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    expect(p.domSnippet).toContain('banner');
+  });
+
+  it('marks the elision so the model does not read a truncated snapshot as the whole page', () => {
+    const md = ['# Page snapshot', '', '```yaml', snapshotWithFailureStateAtTheEnd, '```'].join(
+      '\n',
+    );
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    expect(p.domSnippet).toContain('elided');
+  });
+
+  // Fixtures documented in tests/network.test.ts. A UI-side failure never names the
+  // backend status in its error text, so without this the payload cannot carry the
+  // one fact that separates a backend outage from a flake.
+  const traceFixture = (name: string) => path.join(import.meta.dirname, `fixtures/${name}`);
+  const withTrace = (name: string) =>
+    fakeResult({
+      attachments: [{ name: 'trace', contentType: 'application/zip', path: traceFixture(name) }],
+    });
+
+  it('carries the trace’s failed requests as evidence', () => {
+    const p = collectFailure(fakeTest(), withTrace('trace-with-failed-requests.zip'), opts);
+    expect(p.failedRequests).toEqual([
+      { status: 503, method: 'GET', url: 'http://127.0.0.1:8129/api/cart' },
+      { status: 429, method: 'GET', url: 'http://127.0.0.1:8129/api/catalog' },
+    ]);
+  });
+
+  it('omits failedRequests when the trace records none', () => {
+    const p = collectFailure(fakeTest(), withTrace('trace-all-ok.zip'), opts);
+    expect(p.failedRequests).toBeUndefined();
+  });
+
+  it('caps failedRequests so one broken host cannot flood the payload', () => {
+    const p = collectFailure(fakeTest(), withTrace('trace-many-failures.zip'), opts);
+    expect(p.failedRequests).toHaveLength(8);
+  });
+
+  it('bounds each failed-request URL — every other payload field has a budget', () => {
+    // the fixture's twelve endpoints all carry a ~400-char padded path
+    const p = collectFailure(fakeTest(), withTrace('trace-many-failures.zip'), opts);
+    const urls = (p.failedRequests ?? []).map((r) => r.url);
+    expect(urls).not.toHaveLength(0);
+    expect(urls.every((url) => url.length <= 300)).toBe(true);
+  });
+
+  it('never splits a surrogate pair when it cuts the snapshot', () => {
+    // aria accessible names carry emoji; half a pair is a lone surrogate in the JSON
+    // sent to the API. The leading 'x' puts every pair on an odd index, so both the
+    // head cut (300) and the tail cut land mid-pair.
+    const snapshot = `x${'🚀'.repeat(2000)}`;
+    const md = ['# Page snapshot', '', '```yaml', snapshot, '```'].join('\n');
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(p.domSnippet).not.toMatch(loneSurrogate);
+  });
+
+  it('honours a snapshot budget smaller than the elision marker itself', () => {
+    // BUDGET.dom leaves ample room, so this is a guarantee of the helper, not of
+    // today's caller — a future budget must not be able to overshoot silently.
+    expect(truncateSnapshot('y'.repeat(500), 10)).toHaveLength(10);
+  });
+
+  it('leaves a within-budget DOM snippet untouched', () => {
+    const snapshot = '- generic [ref=e1]:\n  - button "Buy" [ref=e2]';
+    const md = ['# Page snapshot', '', '```yaml', snapshot, '```'].join('\n');
+    const result = fakeResult({
+      attachments: [{ name: 'error-context', contentType: 'text/markdown', body: Buffer.from(md) }],
+    });
+    const p = collectFailure(fakeTest(), result, { ...opts, includeDom: true });
+    expect(p.domSnippet).toBe(snapshot);
   });
 });

@@ -20,9 +20,10 @@ minimal reproduction, and the impact you see.
 The reporter runs inside your CI and sends redacted failure text to two kinds of destinations
 you control: the Anthropic API and the outputs you enable (GitHub PR comment, Slack webhook).
 The exact field list is documented in the README section
-["What data is sent where"](README.md#what-data-is-sent-where). Screenshots, videos, traces,
+["What data is sent where"](README.md#what-data-is-sent-where). Screenshots, videos, trace files,
 and source code (beyond stack frames and whatever you opt into via `GIT_DIFF_SUMMARY`) are
-never uploaded.
+never uploaded. Traces are read locally to extract the status, method and URL (origin and path — hostnames
+and ports included) of failed requests — that field list, and its redaction rules, are documented in the same README section.
 
 Reports we consider security vulnerabilities include:
 

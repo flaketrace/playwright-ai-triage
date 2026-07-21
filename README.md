@@ -104,14 +104,26 @@ title, file path, line number, error message, stack (truncated, `node_modules` f
 stripped), failing step title, retry history with the retry-then-passed flag and a short
 redacted error head for each earlier attempt that failed differently (so a timeout preceded
 by 500s reads as what it is), the deterministic
-heuristic prior (when one exists), duration, and — only if you opt in — a redacted DOM snapshot
+heuristic prior (when one exists), duration, the failed requests behind the failure (see below),
+and — only if you opt in — a redacted DOM snapshot
 (from Playwright's own error-context attachment) and whatever you place in `GIT_DIFF_SUMMARY`.
+
+Failed requests: when your config records traces, the reporter reads the failing attempt's trace
+and sends the **status, method and URL** of the 4xx/5xx responses it finds — the URL reduced
+to origin and path (so an internal hostname and port do travel with it) — deduplicated, at
+most 8, query strings and any `user:pass@` credentials stripped, then run through the same
+redaction patterns as everything else. No other part of the trace is sent, and the trace file
+itself is never uploaded. This exists because Playwright's error text never names the status
+behind a UI-side failure: a backend 503 surfaces as "timeout waiting for the predicate" and is
+otherwise indistinguishable from a race. Absent if you record no traces, or if you set
+`trace.snapshots: false` (network data rides on snapshot tracing).
 
 Sent to your own endpoint only if you set `sinkUrl`: the same redacted payloads plus their
 classifications and fingerprints (see "HTTP sink" above). Nothing is sent when unset.
 
-Never sent anywhere: screenshots, videos, traces, your source code beyond the stack frames above.
-Media files are referenced by local path in the summary, never uploaded.
+Never sent anywhere: screenshots, videos, trace files, your source code beyond the stack frames
+above. Media files are referenced by local path in the summary, never uploaded. A trace is read
+locally for the failed-request lines described above and is never uploaded itself.
 
 ## After a fix
 

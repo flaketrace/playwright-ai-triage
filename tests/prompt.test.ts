@@ -10,6 +10,12 @@ describe('SYSTEM_PROMPT self-consistency', () => {
     expect(PROMPT_VERSION).toMatch(/^v\d+$/);
   });
 
+  // collect.ts can put `failedRequests` in the payload; a field the prompt never
+  // names is a field the model has to guess at. Keeps the two from drifting apart.
+  it('documents the failedRequests field it can receive', () => {
+    expect(SYSTEM_PROMPT).toContain('failedRequests');
+  });
+
   it('the Examples header count matches the number of [real, sanitized] entries', () => {
     const headerMatch = SYSTEM_PROMPT.match(/## Examples \((\d+) real, sanitized/);
     expect(headerMatch).not.toBeNull();
