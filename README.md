@@ -13,7 +13,7 @@ to stdout, a GitHub PR comment, or Slack.
 
 _Illustrative example of the output format (static version:
 [hero-comment.png](docs/assets/hero-comment.png)) — in CI the summary lands as a single
-auto-updating comment on your PR; see [a live comment posted by our own CI](https://github.com/flaketrace/playwright-ai-triage/pull/3)._
+auto-updating comment on your PR (as exercised by this repo's own integration CI on every pull request)._
 
 Self-hosted by design: you bring your own Anthropic API key, and your test results are processed
 inside your own CI. There is no hosted platform behind this package. Failure text is sent to two
