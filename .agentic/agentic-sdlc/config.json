@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "mode_defaults": {
+    "autonomous": {
+      "escalate_on": ["security","breaking-change","migration","spend"],
+      "max_clarifying_questions_per_phase": 3
+    }
+  },
+  "feature_verification": {
+    "allow_dynamic_playwright": true,
+    "app_start_command": "",
+    "base_url": ""
+  },
+  "integrations": {
+    "ticket": {
+      "enabled": true,
+      "adapter": "documented in .agentic/guides/project.md (none)"
+    },
+    "github": { "enabled": true, "command": "gh" }
+  }
+}

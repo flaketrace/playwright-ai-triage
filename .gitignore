@@ -14,20 +14,33 @@ examples/tarball-smoke/output.log
 .env*
 .DS_Store
 
+# Agentic flow — the governed layer (.agentic contracts + .claude agents/hooks) is
+# TRACKED: it is the single source of truth for how agents work in this repo, and a
+# fresh clone or worktree must get it from git. Only runtime state and confidential
+# machine-local files stay out.
+.claude/worktrees/
+.claude/hooks/leak_patterns.txt
+.claude/hooks/__pycache__/
+.claude/.review-stamp
+.claude/checkpoints/
+.claude/settings.local.json
+.agentic/state/
+.agentic/agentic-os/install.json
+.agentic/agentic-os/doctor.json
+
 # internal development tooling — intentionally untracked in this repo
-.agentic/
-.agentic
 .agents/
 .ai-run/
-.claude/
 .cursor/
 .codex/
 .serena/
-CLAUDE.md
-AGENTS.md
-PATTERNS.md
-ARCHITECTURE.md
-SYNC_TO_WIKI.md
+# anchored to root: unanchored names also swallow same-named files at any depth
+# (case-insensitively on macOS — this silently excluded a tracked guide once)
+/CLAUDE.md
+/AGENTS.md
+/PATTERNS.md
+/ARCHITECTURE.md
+/SYNC_TO_WIKI.md
 docs/audits/
 docs/superpowers/
 .githooks/
