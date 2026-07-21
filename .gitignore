@@ -21,6 +21,7 @@ examples/tarball-smoke/output.log
 .claude/worktrees/
 .claude/hooks/leak_patterns.txt
 .claude/hooks/__pycache__/
+.github/scripts/__pycache__/
 .claude/.review-stamp
 .claude/checkpoints/
 .claude/settings.local.json
