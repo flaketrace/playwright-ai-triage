@@ -12,6 +12,13 @@ export interface FailureRetry {
   errorHead?: string;
 }
 
+/** A failed HTTP response observed in the run's trace. */
+export interface FailedRequest {
+  status: number;
+  method: string;
+  url: string;
+}
+
 /** Everything the classifier is allowed to see about one failed test. */
 export interface FailurePayload {
   testId: string;
@@ -31,6 +38,16 @@ export interface FailurePayload {
   heuristicPrior?: 'FLAKY' | 'ENV_ISSUE';
   /** opt-in via `includeDom`, truncated to 1500 chars, redacted */
   domSnippet?: string;
+  /**
+   * 4xx/5xx responses recorded in this attempt's trace, deduplicated and capped at
+   * 8. Each URL keeps its origin and path — hostname and port included, since two
+   * same-path endpoints on different hosts are different facts — with the query
+   * string and any `user:pass@` credentials stripped. Absent when the run captured no trace (tracing is
+   * opt-in) or nothing failed. The status behind a UI-side failure appears nowhere
+   * in Playwright's error text — a backend 503 reads as "timeout waiting for the
+   * predicate" — so this is often the only thing separating an outage from a flake.
+   */
+  failedRequests?: FailedRequest[];
   /** opt-in only, via the GIT_DIFF_SUMMARY env var; absent when unset; truncated to 1000 chars */
   diffSummary?: string;
   duration: number;

@@ -3,13 +3,61 @@ import path from 'node:path';
 
 import type { TestCase, TestResult, TestStep } from '@playwright/test/reporter';
 
+import { failedRequestsFrom } from './network.js';
 import { redact } from './redact.js';
 import type { FailurePayload, FailureRetry } from './types.js';
 
-const BUDGET = { error: 2000, stack: 2000, dom: 1500, diff: 1000, retryError: 300 } as const;
+const BUDGET = {
+  error: 2000,
+  stack: 2000,
+  dom: 1500,
+  diff: 1000,
+  retryError: 300,
+  failedRequests: 8,
+  url: 300,
+} as const;
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** chars of an over-budget aria snapshot kept from the top, for page identity */
+const SNAPSHOT_HEAD = 300;
+
+/**
+ * Truncate an aria snapshot from the MIDDLE, not the end.
+ *
+ * An aria snapshot is ordered top-of-page first, so `truncate` keeps the banner
+ * and nav — the part identical on every page — and drops the part that says why
+ * the test failed. Measured on a ~3000-char snapshot, the spinner, the loading
+ * text and the error dialog all sat past a 1500-char head: the model read the
+ * surviving chrome as "the page loaded" and lowered its confidence.
+ *
+ * A short head still earns its place — "which page is this" is evidence too
+ * (a login page under a checkout test is a session-expiry signal). The elision
+ * is marked so the model never reads a fragment as the whole page.
+ */
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+
+export function truncateSnapshot(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const marker = (elided: number) => `\n… [${elided} chars elided] …\n`;
+  // elided < text.length, so a marker sized for text.length is never too small
+  const markerLength = marker(text.length).length;
+  // no budget for even the marker: fall back to a plain cut rather than overshoot
+  if (max <= markerLength) return truncate(text, max);
+  // a budget too small for head + marker must still honour `max`; the head yields first
+  const headLength = Math.max(0, Math.min(SNAPSHOT_HEAD, max - markerLength));
+  const tailLength = Math.max(0, max - headLength - markerLength);
+
+  let head = text.slice(0, headLength);
+  // a cut between a surrogate pair leaves a lone half in the JSON sent to the API
+  if (isHighSurrogate(head.charCodeAt(head.length - 1))) head = head.slice(0, -1);
+  let tail = tailLength > 0 ? text.slice(text.length - tailLength) : '';
+  if (isLowSurrogate(tail.charCodeAt(0))) tail = tail.slice(1);
+
+  return `${head}${marker(text.length - head.length - tail.length)}${tail}`;
 }
 
 // Playwright colourises assertion errors (SGR escapes like `\x1b[2m`); those
@@ -140,6 +188,11 @@ export function collectFailure(
 
   const domSnippet = options.includeDom ? domSnippetFrom(result) : undefined;
 
+  // Not gated on includeDom: a status line is an endpoint and a number, with the
+  // query string already dropped — it carries none of the page content that made
+  // the DOM snippet opt-in, and it is the evidence a UI-side backend failure needs.
+  const failedRequests = failedRequestsFrom(result)?.slice(0, BUDGET.failedRequests);
+
   const failingStep = deepestFailedStep(result.steps);
 
   return {
@@ -153,7 +206,15 @@ export function collectFailure(
     ...(failingStep ? { failingStep: truncate(clean(failingStep), BUDGET.error) } : {}),
     retries,
     retryThenPassed: test.outcome() === 'flaky',
-    ...(domSnippet ? { domSnippet: truncate(clean(domSnippet), BUDGET.dom) } : {}),
+    ...(domSnippet ? { domSnippet: truncateSnapshot(clean(domSnippet), BUDGET.dom) } : {}),
+    ...(failedRequests?.length
+      ? {
+          failedRequests: failedRequests.map((r) => ({
+            ...r,
+            url: truncate(clean(r.url), BUDGET.url),
+          })),
+        }
+      : {}),
     ...(options.diffSummary
       ? { diffSummary: truncate(clean(options.diffSummary), BUDGET.diff) }
       : {}),
