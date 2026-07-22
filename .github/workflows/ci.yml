@@ -57,6 +57,18 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      # The sync pipeline's trust-boundary helper is Python. Deliberately NOT in
+      # `npm run gate` — this is a Node package and contributors should not need a
+      # Python toolchain for the gate. Runs last so a pip hiccup cannot fail the
+      # Node build; venv mirrors second-brain-sync.yml rather than installing into
+      # the runner's system Python. PyYAML is the only import-time dependency —
+      # the Anthropic SDK is imported lazily inside main().
+      - name: Test sync scripts
+        run: |
+          python3 -m venv --clear .venv-test
+          .venv-test/bin/pip install --quiet 'pyyaml==6.*'
+          .venv-test/bin/python3 -m unittest discover -s .github/scripts -p 'test_*.py'
       # engines claims node >=18; dev tooling needs 22, so smoke-test the built
       # artifact itself on the minimum supported runtime.
       - uses: actions/setup-node@v4

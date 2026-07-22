@@ -7,6 +7,11 @@ Thanks for your interest! Issues and PRs are welcome — check
 
 - `npm run gate` (lint + typecheck + tests + build) must pass before any PR.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, …).
+
+Editing `.github/scripts/`? Those are the CI knowledge-sync pipeline's Python
+helpers, tested separately: `npm run test:scripts` (needs `pyyaml`). They are out
+of `npm run gate` on purpose — this is a Node package.
+
 - Add a changeset (`npx changeset`) for anything user-visible.
 - Never commit secrets or real API keys; tests mock the Anthropic SDK.
 - Sign off every commit (see below).
