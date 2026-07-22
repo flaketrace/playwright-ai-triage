@@ -50,3 +50,4 @@ scripts/install-git-hooks.sh
 # local eval harness / grader tooling + scratch artifacts — never committed
 .eval-scratch/
 scratch/
+.venv-test/
