@@ -1,0 +1,80 @@
+name: Second Brain Sync
+
+# Knowledge capture: every push to main is analyzed against the sync contract
+# (.agentic/guides/second-brain-contract.md) and, when knowledge-significant,
+# delivered to the second-brain repo's inbox for Librarian ingestion.
+# workflow_dispatch backfills an explicit SHA range (e.g. a release that landed
+# before this workflow existed).
+#
+# Required repo secrets (workflow no-ops loudly without them):
+#   ANTHROPIC_API_KEY — analysis model
+#   SECOND_BRAIN_PAT  — fine-grained PAT, contents:write on the second-brain repo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      before_sha:
+        description: 'Range start (exclusive) — commit BEFORE the first one to analyze'
+        required: true
+      after_sha:
+        description: 'Range end (inclusive)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Generate & deliver knowledge entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout playwright-ai-triage
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check secrets
+        id: secrets
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_PAT: ${{ secrets.SECOND_BRAIN_PAT != '' }}
+        run: |
+          if [ "$HAS_KEY" = "true" ] && [ "$HAS_PAT" = "true" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::second-brain sync skipped — ANTHROPIC_API_KEY and/or SECOND_BRAIN_PAT not configured"
+          fi
+
+      - name: Install dependencies (venv)
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          python3 -m venv --clear .venv
+          .venv/bin/pip install --quiet 'anthropic==0.111.*' 'pyyaml==6.*'
+
+      - name: Run knowledge-capture agent
+        id: generate
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BEFORE_SHA: ${{ github.event.inputs.before_sha || github.event.before }}
+          AFTER_SHA: ${{ github.event.inputs.after_sha || github.sha }}
+        run: .venv/bin/python3 .github/scripts/generate_sync.py
+
+      - name: Checkout second-brain
+        if: steps.secrets.outputs.ok == 'true' && contains(fromJSON('["KNOWLEDGE_ENTRY","KNOWLEDGE_GAPS"]'), steps.generate.outputs.result)
+        uses: actions/checkout@v4
+        with:
+          repository: Jarroslav/second-brain
+          token: ${{ secrets.SECOND_BRAIN_PAT }}
+          path: second-brain
+
+      - name: Deliver to second-brain inbox
+        if: steps.secrets.outputs.ok == 'true' && contains(fromJSON('["KNOWLEDGE_ENTRY","KNOWLEDGE_GAPS"]'), steps.generate.outputs.result)
+        env:
+          COMMIT_SHA: ${{ github.event.inputs.after_sha || github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'backfill (workflow_dispatch)' }}
+        run: .venv/bin/python3 .github/scripts/commit_sync.py

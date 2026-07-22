@@ -46,3 +46,9 @@ payload and get human confirmation before any external write.
 MR/PR body when one exists. Conventional commit messages; no AI attribution
 footers. Production promotion is human-gated (see
 `.agentic/guides/policy/escalation-policy.md`).
+
+## Knowledge sync
+
+Every push to `main` is analyzed against `.agentic/guides/second-brain-contract.md`
+by `.github/workflows/second-brain-sync.yml` and, when knowledge-significant,
+delivered to the owner's knowledge-base inbox for automated ingestion.
