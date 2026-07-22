@@ -1,0 +1,142 @@
+{
+  "extraKnownMarketplaces": {
+    "agentic-os": {
+      "source": {
+        "source": "github",
+        "repo": "Jarroslav/agentic-os"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "agentic-sdlc@agentic-os": true
+  },
+  "permissions": {
+    "deny": [
+      "Read(.env*)",
+      "Read(.auth/**)",
+      "Read(*token*.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/human_gated_commands.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/precommit_review_gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/leak_gate.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/guarded_write_paths.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/write_scope_guard.py block"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/guarded_write_paths.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/write_scope_guard.py block"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/instruction_stale_notice.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/instruction_stale_notice.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/instruction_gate.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/subagent_gate.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/subagent_gate.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session_start_bootstrap.py"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/precompact_checkpoint.py"
+          }
+        ]
+      }
+    ]
+  }
+}
