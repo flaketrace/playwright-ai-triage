@@ -1,0 +1,106 @@
+name: Bug report
+description: Something the reporter does wrong — crashes, wrong output, broken comment, misbehaving option
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reporter-output
+    attributes:
+      label: Reporter output
+      description: >-
+        Paste the reporter's stdout summary (the block starting with `playwright-ai-triage — …`).
+        For a misclassification, include the failure's error message and the class + "why" the
+        reporter produced.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: redaction-check
+    attributes:
+      label: Before you post
+      description: Redaction is best-effort — a secret in an unusual format may not be masked.
+      options:
+        - label: I checked the pasted output for secrets and URLs I don't want public.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: playwright-ai-triage version
+      placeholder: x.y.z
+    validations:
+      required: true
+
+  - type: input
+    id: playwright-version
+    attributes:
+      label: '@playwright/test version'
+      placeholder: 1.5x.x
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      placeholder: v22.x
+    validations:
+      required: true
+
+  - type: input
+    id: ci
+    attributes:
+      label: Where it ran
+      description: CI system, or "local" — and whether the run was sharded.
+      placeholder: GitHub Actions, --shard=2/4 — or "local"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: Run mode
+      options:
+        - keyed (ANTHROPIC_API_KEY set)
+        - keyless (no API key)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outputs
+    attributes:
+      label: Outputs enabled
+      description: Leave blank if you're not sure — the reporter config below usually tells us.
+      multiple: true
+      options:
+        - auto-detect
+        - stdout
+        - github
+        - slack
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Reporter config
+      description: The reporter tuple from your `playwright.config.ts`.
+      render: typescript
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Smallest failing spec or steps that trigger it, if you have one.
+    validations:
+      required: false

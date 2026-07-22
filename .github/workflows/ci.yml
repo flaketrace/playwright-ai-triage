@@ -14,8 +14,13 @@ jobs:
     if: github.event_name == 'pull_request'
     # every PR commit must carry a Signed-off-by trailer (DCO 1.1 — see CONTRIBUTING.md);
     # checked inline rather than via a third-party action to keep the supply chain minimal.
-    # github-actions[bot] commits (changesets "Version Packages" PRs) are release
-    # automation, not contributions, and are exempt.
+    # Two bots are exempt: github-actions[bot] (changesets "Version Packages" PRs) and
+    # dependabot[bot] (dependency bumps). Neither is a contribution with an author who
+    # could certify origin, and without the exemption every automated PR is born red.
+    # Exact addresses only, and quoted so "[bot]" is literal rather than a glob character
+    # class that would also match e.g. github-actionsb@... . Author email is self-asserted,
+    # so this is not an access control — DCO is a certification ceremony, and the exemption
+    # just keeps it from blocking commits no human authored.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,10 +37,13 @@ jobs:
           fi
           missing=0
           for sha in $commits; do
-            if [ "$(git log -1 --format='%ae' "$sha")" = "41898282+github-actions[bot]@users.noreply.github.com" ]; then
-              echo "skipping release-automation commit $(git log -1 --format='%h %s' "$sha")"
-              continue
-            fi
+            author=$(git log -1 --format='%ae' "$sha")
+            case "$author" in
+              '41898282+github-actions[bot]@users.noreply.github.com' | '49699333+dependabot[bot]@users.noreply.github.com')
+                echo "skipping automation commit $(git log -1 --format='%h %s' "$sha")"
+                continue
+                ;;
+            esac
             if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
               echo "::error::commit $sha has no Signed-off-by trailer — fix with 'git commit --amend -s' (or 'git rebase --signoff' for multiple commits)"
               git log -1 --format='%h %s' "$sha"

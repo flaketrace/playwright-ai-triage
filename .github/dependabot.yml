@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  # Runtime and dev dependencies. Grouped so a quiet week produces one PR, not nine —
+  # this is a solo-maintained repo and PR volume is the thing that kills adoption of
+  # automated updates. Majors stay ungrouped so they get read individually.
+  # `directories`, not `directory`: both examples carry their own @playwright/test range and
+  # neither is a workspace of the root package.json, so a single root entry would silently
+  # never update them while CI keeps running both on every push.
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /examples/gh-actions-demo
+      - /examples/tarball-smoke
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Action versions in .github/workflows/. Pinned actions go stale silently and are a
+  # supply-chain surface; this is the only thing that surfaces them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Majors stay ungrouped here too: an action major (checkout@v4 -> v5) can break CI,
+      # and a grouped PR makes it harder to tell which bump did it.
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
