@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
+import zlib from 'node:zlib';
 import path from 'node:path';
 
 import type { TestResult } from '@playwright/test/reporter';
@@ -106,28 +107,62 @@ describe('failedRequestsFrom', () => {
 
   it('returns undefined when a trace holds only successful requests', () => {
     const onlyOk = path.join(import.meta.dirname, 'fixtures/trace-all-ok.zip');
+    // Guard against the vacuous pass: a trace captured with `snapshots: false` has a
+    // ZERO-BYTE .network segment and would return undefined for the wrong reason.
+    // Assert the segment actually holds data before asserting the reader's verdict.
+    const buffer = fs.readFileSync(onlyOk);
+    let eocd = buffer.length - 22;
+    while (eocd >= 0 && buffer.readUInt32LE(eocd) !== 0x06054b50) eocd--;
+    let cursor = buffer.readUInt32LE(eocd + 16);
+    let networkBytes = 0;
+    while (cursor + 46 <= buffer.length && buffer.readUInt32LE(cursor) === 0x02014b50) {
+      const nameLength = buffer.readUInt16LE(cursor + 28);
+      const name = buffer.toString('utf8', cursor + 46, cursor + 46 + nameLength);
+      // +24 = UNCOMPRESSED size: a deflated zero-byte segment still has a nonzero
+      // compressed size (2-5 bytes of deflate framing), which would defeat this guard
+      if (name.endsWith('.network')) networkBytes += buffer.readUInt32LE(cursor + 24);
+      cursor +=
+        46 + nameLength + buffer.readUInt16LE(cursor + 30) + buffer.readUInt16LE(cursor + 32);
+    }
+    expect(networkBytes).toBeGreaterThan(0);
     expect(failedRequestsFrom(resultWithTrace(onlyOk))).toBeUndefined();
   });
 
   /**
-   * Rewrite the central-directory `compressed size` (header + 20) of the FIRST
-   * `.network` entry, then hand the result back as a temp file. Two hazards live
-   * behind this field: it sizes a `Buffer.alloc` — 0xffffffff means a 4 GiB
-   * allocation inside Playwright's own process — and 0xffffffff is also the zip64
-   * "look elsewhere" sentinel, so a zip64 entry lands here by a second route.
-   * A trace whose tail a killed CI job truncated is the realistic way to get one.
+   * Rewrite the central-directory `compressed size` (header + 20) of the FIRST-context
+   * `.network` entry (the one holding the 200 on /api/ok — selected by content, because
+   * the order entries appear in the central directory is a timing artifact of the
+   * capture, not a property worth pinning). Two hazards live behind this field: it
+   * sizes a `Buffer.alloc` — 0xffffffff means a 4 GiB allocation inside Playwright's
+   * own process — and 0xffffffff is also the zip64 "look elsewhere" sentinel, so a
+   * zip64 entry lands here by a second route. A trace whose tail a killed CI job
+   * truncated is the realistic way to get one.
    */
-  function withCorruptedFirstSegment(sizeField: number): string {
+  function withCorruptedSegment(sizeField: number, marker: string): string {
     const buffer = fs.readFileSync(TRACE);
     let eocd = buffer.length - 22;
     while (eocd >= 0 && buffer.readUInt32LE(eocd) !== 0x06054b50) eocd--;
     let cursor = buffer.readUInt32LE(eocd + 16);
-    for (;;) {
+    let corruptedOne = false;
+    while (!corruptedOne) {
       const nameLength = buffer.readUInt16LE(cursor + 28);
       const name = buffer.toString('utf8', cursor + 46, cursor + 46 + nameLength);
       if (name.endsWith('.network')) {
-        buffer.writeUInt32LE(sizeField, cursor + 20);
-        break;
+        // a central-directory walk mirroring src/network.ts, so the victim is
+        // chosen by what the segment CONTAINS, not where the writer placed it
+        const localHeaderOffset = buffer.readUInt32LE(cursor + 42);
+        const compressedSize = buffer.readUInt32LE(cursor + 20);
+        const dataOffset =
+          localHeaderOffset +
+          30 +
+          buffer.readUInt16LE(localHeaderOffset + 26) +
+          buffer.readUInt16LE(localHeaderOffset + 28);
+        const raw = buffer.subarray(dataOffset, dataOffset + compressedSize);
+        const inflated = zlib.inflateRawSync(raw).toString('utf8');
+        if (inflated.includes(marker)) {
+          buffer.writeUInt32LE(sizeField, cursor + 20);
+          corruptedOne = true;
+        }
       }
       cursor +=
         46 + nameLength + buffer.readUInt16LE(cursor + 30) + buffer.readUInt16LE(cursor + 32);
@@ -141,7 +176,9 @@ describe('failedRequestsFrom', () => {
   }
 
   it('skips a segment whose declared size overruns the file, keeping the other segment', () => {
-    const requests = failedRequestsFrom(resultWithTrace(withCorruptedFirstSegment(0xfffffff0)));
+    const requests = failedRequestsFrom(
+      resultWithTrace(withCorruptedSegment(0xfffffff0, '/api/ok')),
+    );
     // the surviving segment is the second context's: same 503, plus its own 429
     expect(requests).toEqual([
       { status: 503, method: 'GET', url: `${ORIGIN}/api/cart` },
@@ -149,8 +186,18 @@ describe('failedRequestsFrom', () => {
     ]);
   });
 
+  it('carries the duplicate 503 in BOTH segments — the dedup test cannot pass vacuously', () => {
+    // corrupt the second context (the /api/catalog one); the first must still yield the 503
+    const requests = failedRequestsFrom(
+      resultWithTrace(withCorruptedSegment(0xfffffff0, '/api/catalog')),
+    );
+    expect(requests).toEqual([{ status: 503, method: 'GET', url: `${ORIGIN}/api/cart` }]);
+  });
+
   it('skips a zip64 segment rather than reading at a sentinel offset', () => {
-    const requests = failedRequestsFrom(resultWithTrace(withCorruptedFirstSegment(0xffffffff)));
+    const requests = failedRequestsFrom(
+      resultWithTrace(withCorruptedSegment(0xffffffff, '/api/ok')),
+    );
     expect(requests).toHaveLength(2);
   });
 });
