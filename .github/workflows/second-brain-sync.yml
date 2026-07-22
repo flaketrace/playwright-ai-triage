@@ -7,8 +7,16 @@ name: Second Brain Sync
 # before this workflow existed).
 #
 # Required repo secrets (workflow no-ops loudly without them):
-#   ANTHROPIC_API_KEY — analysis model
-#   SECOND_BRAIN_PAT  — fine-grained PAT, contents:write on the second-brain repo
+#   ANTHROPIC_API_KEY       — analysis model
+#   SECOND_BRAIN_DEPLOY_KEY — SSH private key of a WRITE-enabled deploy key on the
+#                             second-brain repo (a deploy key is scoped to that one
+#                             repository, so it cannot reach anything else — a
+#                             tighter blast radius than a user PAT). Needs "Allow
+#                             write access" enabled on the key.
+#                             SECOND_BRAIN_PAT is accepted as an alias for the
+#                             pre-rename secret — but despite the name it must also
+#                             contain an SSH private key, never a token. Drop the
+#                             alias once the secret is renamed.
 
 on:
   push:
@@ -40,13 +48,13 @@ jobs:
         id: secrets
         env:
           HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-          HAS_PAT: ${{ secrets.SECOND_BRAIN_PAT != '' }}
+          HAS_KEY_2: ${{ (secrets.SECOND_BRAIN_DEPLOY_KEY || secrets.SECOND_BRAIN_PAT) != '' }}
         run: |
-          if [ "$HAS_KEY" = "true" ] && [ "$HAS_PAT" = "true" ]; then
+          if [ "$HAS_KEY" = "true" ] && [ "$HAS_KEY_2" = "true" ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::second-brain sync skipped — ANTHROPIC_API_KEY and/or SECOND_BRAIN_PAT not configured"
+            echo "::warning::second-brain sync skipped — ANTHROPIC_API_KEY and/or SECOND_BRAIN_DEPLOY_KEY (alias: SECOND_BRAIN_PAT) not configured"
           fi
 
       - name: Install dependencies (venv)
@@ -69,7 +77,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Jarroslav/second-brain
-          token: ${{ secrets.SECOND_BRAIN_PAT }}
+          # ssh-key, NOT token: a deploy key is an SSH private key, and handing it
+          # to the REST API as an HTTP token is exactly what "Bad credentials" means.
+          # checkout writes the key under RUNNER_TEMP and persists `core.sshCommand`
+          # into second-brain/.git/config, so the delivery script's `git push` rides
+          # the same credential — which holds only while persist-credentials keeps
+          # its default of true. Do not set it false here.
+          ssh-key: ${{ secrets.SECOND_BRAIN_DEPLOY_KEY || secrets.SECOND_BRAIN_PAT }}
+          # full history: the delivery script rebases onto the remote when a racing
+          # push beats it, and a rebase on a depth-1 clone cannot resolve.
+          fetch-depth: 0
           path: second-brain
 
       - name: Deliver to second-brain inbox

@@ -14,7 +14,7 @@ Output types (exactly one):
 
 Result written to $RUNNER_TEMP/SYNC_RESULT.txt for commit_sync.py, and the
 result flag is exported via GITHUB_OUTPUT (key `result`) so the workflow can
-skip the PAT-bearing delivery steps entirely on NOOP.
+skip the credential-bearing delivery steps entirely on NOOP.
 """
 
 import os
