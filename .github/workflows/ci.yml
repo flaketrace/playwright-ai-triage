@@ -22,7 +22,7 @@ jobs:
     # so this is not an access control — DCO is a certification ceremony, and the exemption
     # just keeps it from blocking commits no human authored.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check Signed-off-by on every PR commit
@@ -55,7 +55,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -92,7 +92,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -128,7 +128,7 @@ jobs:
     # published `files` surface resolves and the bare-string reporter config runs.
     # No dryRun, no ANTHROPIC_API_KEY: exercises the graceful-degradation path.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
