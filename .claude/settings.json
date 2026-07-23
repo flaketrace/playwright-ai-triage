@@ -24,15 +24,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/human_gated_commands.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/human_gated_commands.py\""
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/precommit_review_gate.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/precommit_review_gate.py\""
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/leak_gate.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/leak_gate.py\""
           }
         ]
       },
@@ -41,11 +41,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/guarded_write_paths.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guarded_write_paths.py\""
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/write_scope_guard.py block"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/write_scope_guard.py\" block"
           }
         ]
       },
@@ -54,11 +54,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/guarded_write_paths.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guarded_write_paths.py\""
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/write_scope_guard.py block"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/write_scope_guard.py\" block"
           }
         ]
       }
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/instruction_stale_notice.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/instruction_stale_notice.py\""
           }
         ]
       },
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/instruction_stale_notice.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/instruction_stale_notice.py\""
           }
         ]
       }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/instruction_gate.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/instruction_gate.py\""
           }
         ]
       }
@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/subagent_gate.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/subagent_gate.py\""
           }
         ]
       }
@@ -111,7 +111,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/subagent_gate.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/subagent_gate.py\""
           }
         ]
       }
@@ -122,7 +122,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/session_start_bootstrap.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session_start_bootstrap.py\""
           }
         ]
       }
@@ -133,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/precompact_checkpoint.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/precompact_checkpoint.py\""
           }
         ]
       }
