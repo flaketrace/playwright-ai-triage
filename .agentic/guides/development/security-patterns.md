@@ -39,10 +39,31 @@ summary, never uploaded (`README.md` §What data is sent where).
 ## C. Extra data collection is opt-in, default off
 
 Anything that widens what leaves the machine defaults to off and requires an
-explicit option: `includeDom` defaults to `false`; the diff summary comes only
-from an explicit `GIT_DIFF_SUMMARY` env or a computed `git diff --stat HEAD~1`.
-New collection surfaces follow the same opt-in default.
-Evidence: `src/types.ts` — `includeDom` doc: "send a redacted DOM snippet with each failure; default false"; `diffSummary` doc: "opt-in via GIT_DIFF_SUMMARY env or computed `git diff --stat HEAD~1`".
+explicit opt-in: `includeDom` defaults to `false`; the diff summary comes only
+from the caller, via the `GIT_DIFF_SUMMARY` env var. **The reporter never shells
+out to `git`** — it computes no diff of its own, so what the caller does not
+provide is simply absent. New collection surfaces are opt-in too, but the opt-in
+need not be a reporter option: it may be a choice the host project has already
+made (see `failedRequests` below). What is never acceptable is a surface that
+collects with no opt-in at all.
+Evidence: `src/config.ts` — `includeDom: z.boolean().default(false)` and
+`diffSummary: env.GIT_DIFF_SUMMARY` (a bare passthrough); `src/types.ts`
+`diffSummary` doc: "opt-in only, via the GIT_DIFF_SUMMARY env var; absent when
+unset; truncated to 1000 chars". `grep -rn 'child_process\|execSync' src/`
+returns nothing.
+
+`failedRequests` (0.8.0) is the one egress surface with **no reporter option of
+its own**: it is read from a trace the host project already chose to record, so
+the user's Playwright config is the opt-in. It is also the surface that carries
+the most identifying data — request URLs reduced to origin + path, so internal
+hostnames and ports do leave the machine. Widening it is a §B payload-field
+change and ships with its limits stated; it becomes a §A escalation only if it
+ever grows a new destination.
+Evidence: `src/collect.ts` — `failedRequestsFrom(result)` is called with no
+option gate, and the cap is `BUDGET.failedRequests = 8` applied there via
+`.slice(0, BUDGET.failedRequests)`; `src/network.ts` — the `failedRequestsFrom`
+jsdoc states tracing is the opt-in, and the URL is reduced to origin + path with
+credentials and query strings stripped, deduplicated.
 
 ## D. Credentials come from env only, never from options or code
 
@@ -66,7 +87,7 @@ build's exit status (tested — see
 [`development-practices.md`](development-practices.md) §D).
 Evidence: `src/types.ts` — `Classification` doc: "Schema-validated classifier output; anything that fails validation becomes UNCLASSIFIED."; `FailureClass` includes `'UNCLASSIFIED'`.
 Evidence: `README.md` — "The reporter never fails your build. No API key? It degrades to a plain failure summary."
-weak-evidence: the zod validation itself is not yet implemented (M0 skeleton; `zod` is a dependency in `package.json` but unused in `src/`) — the rule is the pinned design contract to implement against, confirm once classification lands.
+Evidence: `src/classify.ts` — `responseSchema` (zod) reaches the SDK via `zodOutputFormat`, and a schema-invalid response, a `refusal`/`max_tokens` stop reason, or an API error after retries each map to `UNCLASSIFIED` instead of throwing; `src/config.ts` — `optionsSchema.safeParse` validates reporter options. (This line replaced a stale note from the M0 skeleton, when zod was a dependency that `src/` did not yet use.)
 
 ## F. Supply chain: minimal publish surface, minimal CI permissions, provenance
 

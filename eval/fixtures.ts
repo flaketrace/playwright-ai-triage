@@ -153,3 +153,48 @@ export const SMOKE_FIXTURES: SmokeFixture[] = [
     ],
   },
 ];
+
+/**
+ * CANDIDATE — not yet active. Add only alongside an eval run that shows how the
+ * current prompt scores it (CONTRIBUTING §"Changing the classifier prompt"); it
+ * is written down here rather than merged blind because it may not pass today,
+ * and that is the point of it.
+ *
+ * Gap: a test that navigates to the WRONG STATE has no natural class. The
+ * taxonomy covers a renamed element (SELECTOR_DRIFT), a disabled one
+ * (ENV_ISSUE) and a broken one (REAL_BUG) — but not "the element is exactly
+ * where it should be, and the test is looking at another view of the same
+ * component". Rule 5 routes a stale test to REAL_BUG only for content/value
+ * mismatches backed by a diff touching the spec; a stale *precondition* produces
+ * deterministic absence, which ambiguity rule 2 sends to ENV_ISSUE instead.
+ *
+ * What makes it different from `flag-gated-section-absent` above — and what a
+ * fixture must carry to test this rather than re-test that — is positive
+ * evidence in the snapshot that the owning container IS rendered: an expanded
+ * dialog/panel holding real content plus a navigation control that leads to the
+ * element the test wants. "Disabled in this environment" is refutable from the
+ * snapshot alone; the test simply never performed the step in between.
+ *
+ * Observed in the wild (2026-07): a run classified ENV_ISSUE at 0.60-0.65 on
+ * every one of 22 consecutive nights, recommending a feature-flag check, while
+ * the real cause was a helper that skipped an onboarding step. The damage was
+ * the confidence, not the class — a verdict hedged at <=0.5 reads as the open
+ * question it is and sends the reader to the snapshot; 0.65 sends them to the
+ * flag config, which is a dead end.
+ *
+ * Shape: a locator TimeoutError for a control nested inside a container, with a
+ * domSnippet in which that container is present, expanded, holding unrelated
+ * real content, and offering a back/navigation control.
+ *
+ * Ground truth is the open question, and it has to be settled before this can
+ * be encoded at all: `acceptable` is required and `capped` applies only to
+ * classes outside it (grade.ts), so "any class, but ENV_ISSUE only when hedged"
+ * is not expressible as written. REAL_BUG is not the obvious answer either —
+ * rule 5 scopes the test-side route to content/value mismatches and excludes
+ * locator-not-found, which is exactly this shape.
+ *
+ * The bar that IS defensible today: the snapshot refutes "disabled here", so a
+ * confident (>0.5) ENV_ISSUE is wrong. Encoding that means either widening
+ * `acceptable` and capping ENV_ISSUE, or extending the harness to cap a class
+ * that is also acceptable. Pick one, then add the fixture.
+ */

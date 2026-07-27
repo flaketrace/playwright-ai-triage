@@ -125,6 +125,39 @@ Never sent anywhere: screenshots, videos, trace files, your source code beyond t
 above. Media files are referenced by local path in the summary, never uploaded. A trace is read
 locally for the failed-request lines described above and is never uploaded itself.
 
+## How much evidence you give it
+
+Three payload fields are opt-in, and they are the ones that separate the ambiguous classes.
+Without them a great many real failures reduce to "this element was not there", which is
+genuinely undecidable — a renamed selector, a disabled feature and a broken feature all produce
+exactly that error text. The classifier is told to hedge rather than guess in that situation, so
+a starved run does not look broken. It looks like a run of plausible verdicts that rarely commit
+— `ENV_ISSUE` and low-confidence `SELECTOR_DRIFT` in particular, since "the element was not
+there" is what both of those are made of.
+
+| Field            | How to enable                                                    | What it decides                                                                                                   |
+| ---------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `domSnippet`     | `includeDom: true`                                               | whether the element is _missing_ or the page is simply somewhere else — the surrounding markup usually says which |
+| `failedRequests` | record a trace on the attempt that fails (see the caveats below) | whether a UI timeout is a race or a 5xx the error text never mentions                                             |
+| `diffSummary`    | `GIT_DIFF_SUMMARY` env                                           | whether the code under test changed at all, and whether the change was in the test or the product                 |
+
+Ways to switch one on and still get nothing: `trace: 'on-first-retry'` records only on a
+retry, so it yields no trace at all unless `retries` is above 0 — pair them, or pick a mode that
+records the first attempt. `trace.snapshots: false` strips the network data the failed-request
+lines are read from (as noted above). And `includeDom` reads Playwright's own `error-context`
+attachment, so it produces a snippet only for the failures Playwright writes one for.
+
+When a verdict looks under-committed, check what it was given before you doubt it. A hedged
+class on a deterministic "element not found" is usually the honest answer to a payload with no
+snapshot, no diff and no request data in it — the run is one to re-configure, not a classifier
+to distrust.
+
+`includeDom` wants **≥ 0.8.0**. Earlier versions truncated an over-budget snapshot head-first,
+which keeps the banner and nav — identical on every page — and drops the part that says why the
+test failed; since 0.8.0 the snapshot is truncated middle-out, keeping a short head for page
+identity plus the tail. Below the budget the two behave identically, so this matters exactly on
+the large snapshots that tend to accompany a hard failure.
+
 ## After a fix
 
 Re-run just the failures — not the whole suite:
