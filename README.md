@@ -195,6 +195,12 @@ already configure, this is.
   comment output is skipped there (stdout still works). Maintainer-branch PRs are unaffected.
 - Non-GitHub CI: `stdout` and `slack` outputs work everywhere; the PR comment output is GitHub
   only.
+- Job-level failures: the reporter only runs once Playwright itself has finished and reports
+  through its own process, so it never sees — and never reports on — failures that stop the job
+  before or around that point (a build error, a runner losing its connection to the CI backend,
+  a step timeout). A CI job can go red with every test green and no reporter output at all; wire
+  a separate job-level failure notification (e.g. a status check, an issue-bot step, a Slack
+  webhook on `if: failure()`) if you need those covered too.
 
 ## License
 
