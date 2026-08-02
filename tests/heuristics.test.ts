@@ -16,6 +16,65 @@ describe('heuristicFor', () => {
     expect(r.verdict?.why).toContain('passed on retry');
   });
 
+  it('retry-then-passed still classifies FLAKY, but flags a stalled attempt in why', () => {
+    // real incident: TimeoutError: page.goto: Timeout 30000ms exceeded, duration
+    // 996000ms (16.6m) against a 45000ms test timeout — the process/runner froze
+    // mid-test (macOS Power Nap), not a normal race.
+    const r = heuristicFor({
+      errorMessage: 'TimeoutError: page.goto: Timeout 30000ms exceeded',
+      stack: '',
+      retryThenPassed: true,
+      duration: 996_000,
+      timeoutMs: 45_000,
+    });
+    expect(r.verdict).toMatchObject({ class: 'FLAKY', confidence: 0.9 });
+    expect(r.verdict?.why).toContain('passed on retry');
+    expect(r.verdict?.why).toContain('22.1x its configured timeout');
+    expect(r.verdict?.why).toContain('infrastructure risk');
+  });
+
+  it('retry-then-passed with an ordinary duration stays the plain FLAKY why (no stall note)', () => {
+    const r = heuristicFor({
+      errorMessage: 'TimeoutError: waiting for locator(".toast-success")',
+      stack: '',
+      retryThenPassed: true,
+      duration: 1_200,
+      timeoutMs: 30_000,
+    });
+    expect(r.verdict?.why).toBe(
+      'failed, then passed on retry — deterministic flaky signal; classified locally without an API call',
+    );
+  });
+
+  it('retry-then-passed without duration/timeoutMs (older payload shape) is unaffected', () => {
+    const r = heuristicFor(payload('TimeoutError: waiting for locator(".toast-success")', true));
+    expect(r.verdict?.why).toBe(
+      'failed, then passed on retry — deterministic flaky signal; classified locally without an API call',
+    );
+  });
+
+  it('just under the stall ratio (2.9x) does not trigger', () => {
+    const r = heuristicFor({
+      errorMessage: 'TimeoutError',
+      stack: '',
+      retryThenPassed: true,
+      duration: 87_000,
+      timeoutMs: 30_000,
+    });
+    expect(r.verdict?.why).not.toContain('infrastructure risk');
+  });
+
+  it('exactly at the stall ratio (3.0x) does trigger — the threshold is inclusive', () => {
+    const r = heuristicFor({
+      errorMessage: 'TimeoutError',
+      stack: '',
+      retryThenPassed: true,
+      duration: 90_000,
+      timeoutMs: 30_000,
+    });
+    expect(r.verdict?.why).toContain('3.0x its configured timeout');
+  });
+
   it.each(['net::ERR_NAME_NOT_RESOLVED', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'])(
     'pure network signature %s => local ENV_ISSUE verdict',
     (sig) => {

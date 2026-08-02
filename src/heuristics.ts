@@ -51,18 +51,43 @@ const ASSERTION_WORDING = /expect\(|Expected:|Received:|toBe|toHaveText|toBeVisi
 const TIMEOUT_WORDING =
   /waiting for (locator|selector|element|getBy|expect)|TimeoutError|Timeout( of)? \d+ms exceeded|Timed out \d+ms/i;
 
+// A duration many times past the configured timeout is proof the process or
+// runner stalled around the failure — Playwright's own timeout mechanism
+// fires at ~timeoutMs, so anything well past a generous multiple of it
+// cannot be ordinary test-level slowness (a locator that's merely slow to
+// resolve still times out at ~timeoutMs, it does not run for minutes past
+// it). 3x comfortably clears normal CI jitter while catching every
+// stalled-runner incident on record (7.7x-22x observed: a self-hosted
+// runner's OS-level sleep froze the whole process tree mid-test, so the
+// timeout callback itself was delayed along with everything else).
+const STALL_RATIO = 3;
+
+function stallNote(duration?: number, timeoutMs?: number): string | undefined {
+  if (!timeoutMs || !duration || duration < timeoutMs * STALL_RATIO) return undefined;
+  const ratio = (duration / timeoutMs).toFixed(1);
+  return ` This attempt ran ${ratio}x its configured timeout (${duration}ms vs ${timeoutMs}ms) before failing — not explainable by test-level timing, the process or runner likely stalled around the failure; treat as an infrastructure risk even though this run self-healed on retry.`;
+}
+
 export function heuristicFor(
-  payload: Pick<FailurePayload, 'errorMessage' | 'stack' | 'retryThenPassed'>,
+  payload: Pick<FailurePayload, 'errorMessage' | 'stack' | 'retryThenPassed'> &
+    Partial<Pick<FailurePayload, 'duration' | 'timeoutMs'>>,
 ): HeuristicResult {
   // Passed on retry: the run itself proved the failure is not reproducible — that is
   // the definition of FLAKY, decidable by script. No model judgment adds anything.
+  // A stalled attempt (see stallNote) does not change that verdict — retrying is
+  // still the correct call — but it does change whether a human should shrug the
+  // failure off, so a large overrun is called out in `why` rather than staying
+  // indistinguishable from an ordinary sub-second UI race.
   if (payload.retryThenPassed) {
+    const base =
+      'failed, then passed on retry — deterministic flaky signal; classified locally without an API call';
+    const stall = stallNote(payload.duration, payload.timeoutMs);
     return {
       prior: 'FLAKY',
       verdict: {
         class: 'FLAKY',
         confidence: 0.9,
-        why: 'failed, then passed on retry — deterministic flaky signal; classified locally without an API call',
+        why: stall ? `${base}.${stall}` : base,
       },
     };
   }

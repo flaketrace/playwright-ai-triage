@@ -51,6 +51,15 @@ export interface FailurePayload {
   /** opt-in only, via the GIT_DIFF_SUMMARY env var; absent when unset; truncated to 1000 chars */
   diffSummary?: string;
   duration: number;
+  /**
+   * This attempt's configured timeout (test.timeout — testConfig.timeout /
+   * testProject.timeout / test.setTimeout(), whichever applied). A `duration`
+   * many times past `timeoutMs` is not decidable from error text alone —
+   * Playwright's own timeout would have fired at ~timeoutMs, so a large
+   * overrun means the process/runner stalled around the failure, not that
+   * the test waited its normal timeout and failed promptly.
+   */
+  timeoutMs?: number;
 }
 
 export type FailureClass = 'REAL_BUG' | 'FLAKY' | 'SELECTOR_DRIFT' | 'ENV_ISSUE' | 'UNCLASSIFIED';
