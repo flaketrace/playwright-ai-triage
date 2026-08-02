@@ -219,5 +219,6 @@ export function collectFailure(
       ? { diffSummary: truncate(clean(options.diffSummary), BUDGET.diff) }
       : {}),
     duration: result.duration,
+    timeoutMs: test.timeout,
   };
 }

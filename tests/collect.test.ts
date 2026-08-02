@@ -12,6 +12,7 @@ function fakeTest(overrides: Partial<Record<string, unknown>> = {}): TestCase {
     location: { file: '/repo/tests/checkout.spec.ts', line: 12, column: 3 },
     outcome: () => 'unexpected',
     results: [],
+    timeout: 30_000,
     ...overrides,
   } as unknown as TestCase;
 }
@@ -41,7 +42,13 @@ describe('collectFailure', () => {
       errorMessage: 'boom',
       retryThenPassed: false,
       duration: 4200,
+      timeoutMs: 30_000,
     });
+  });
+
+  it("carries the test's configured timeout as timeoutMs", () => {
+    const p = collectFailure(fakeTest({ timeout: 45_000 }), fakeResult(), opts);
+    expect(p.timeoutMs).toBe(45_000);
   });
 
   it('truncates error message to 2000 chars and stack to 2000', () => {
