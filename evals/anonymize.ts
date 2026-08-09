@@ -1,16 +1,57 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFileSync, realpathSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { redact } from '../src/redact.js';
-import { goldenCaseSchema, type GoldenCase } from './schema.js';
+import { goldenCaseSchema, writeGoldenCase, type GoldenCase } from './schema.js';
 
 export type RedactionKind = 'EMAIL' | 'HOST' | 'PATH' | 'TOKEN';
 
 const EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const URL_PATTERN = /https?:\/\/[^\s/'")]+/g;
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const UNIX_PATH = /\/(?:Users|home)\/[^\s'":]+/g;
+// Bare hostnames without a scheme (e.g. "getaddrinfo ENOTFOUND payments-api.acme-corp.internal") —
+// URL_PATTERN only catches http(s):// forms, so a dotted-domain-shaped token needs its own pass.
+// A generic "word.word" match, and even a TLD-suffix-anchored match, is unsafe:
+// short generic suffixes (io/dev/app/co/test/local) collide with ordinary code
+// identifiers (console.info, RegExp.test, db.local), and no finite TLD list
+// covers every real ccTLD (.de, .uk, .cloud, ...) without either over- or
+// under-redacting. Gated on context instead: only a dotted token immediately
+// following a DNS/network-error keyword — the shape Node's own network errors
+// actually take — counts as a hostname. Narrower true-positive net, but a
+// false negative here is caught by the tool's other passes plus the
+// mandatory human diff review; a false positive corrupts case fidelity with
+// no way for a reviewer to notice short of re-typing the original.
+// Lookbehind (not a capture group) so the match is the hostname alone —
+// the keyword that gated it stays in the output, only the host is replaced.
+// Final label must START with a letter (a real TLD/suffix never starts with
+// a digit) so a version or duration string right after one of these
+// keywords — "ETIMEDOUT 30.5s elapsed", "ECONNRESET v18.20.4 node" — isn't
+// mistaken for a host; bare IPs are already handled by the IPV4 pass above.
+// Requiring the final label to be PURELY alphabetic (no trailing digit)
+// would instead garble punycode/IDN TLDs (".xn--p1ai") mid-label, leaving
+// visible residue in the output — an alphabetic start is enough to reject
+// digit-led version numbers without that corruption.
+const BARE_HOSTNAME =
+  /(?<=\b(?:ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|EAI_AGAIN|getaddrinfo)\s)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/g;
+// Absolute paths rooted at known filesystem locations (a maintainer's home
+// directory, or a common local/CI/container checkout root) — not "any
+// absolute path with 2+ segments", which is indistinguishable from a URL
+// route like /api/v1/orders or /checkout/session/create appearing in
+// ordinary error text. "github" covers GitHub Actions' /github/workspace
+// container root.
+//
+// The leading `/` is anchored to a real path-start boundary (start of
+// string, preceded by whitespace/quote/paren/colon/equals, OR preceded by
+// "file://" — Node ESM stack frames and ERR_MODULE_NOT_FOUND messages use
+// file:/// URLs, whose extra slashes would otherwise block the lookbehind
+// entirely and leak the whole path unredacted) via the negative lookbehind.
+// Without the boundary anchor at all, an UNLISTED root whose path happens to
+// contain a LISTED segment produces a silent partial leak: "/mnt/ci/workspace/…"
+// would match starting mid-string at "/workspace/…", redacting the tail
+// while leaving "/mnt/ci" — the actually-identifying part — untouched, and
+// worse, reading as if the whole line had been sanitized.
+const UNIX_PATH =
+  /(?:(?<![^\s'"(:=])|(?<=file:\/\/))\/(?:Users|home|builds|var|opt|workspace|srv|runner|root|tmp|app|usr|data|github)\/[^\s'":]+/g;
 const WINDOWS_PATH = /[A-Za-z]:\\(?:[^\s'":\\]+\\)*[^\s'":\\]+/g;
 
 /**
@@ -35,8 +76,12 @@ export function redactText(
     { pattern: EMAIL, kind: 'EMAIL' },
     { pattern: URL_PATTERN, kind: 'HOST' },
     { pattern: IPV4, kind: 'HOST' },
+    // Paths run before the bare-hostname pass: a file path's extension
+    // (e.g. "index.ts") is itself a dotted, hostname-shaped token, so
+    // matching paths first keeps the hostname pass from eating it.
     { pattern: UNIX_PATH, kind: 'PATH' },
     { pattern: WINDOWS_PATH, kind: 'PATH' },
+    { pattern: BARE_HOSTNAME, kind: 'HOST' },
   ];
   for (const { pattern, kind } of passes) {
     const placeholder = kind === 'HOST' ? '<HOST>' : kind === 'PATH' ? '<PATH>' : '<EMAIL>';
@@ -170,7 +215,7 @@ export interface RunAnonymizeDeps {
   casesDir?: string;
 }
 
-const DEFAULT_CASES_DIR = 'evals/golden/cases';
+const DEFAULT_CASES_DIR = fileURLToPath(new URL('./golden/cases', import.meta.url));
 
 export async function runAnonymize(argv: string[], deps: RunAnonymizeDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
@@ -178,13 +223,6 @@ export async function runAnonymize(argv: string[], deps: RunAnonymizeDeps = {}):
   const errorLog = deps.errorLog ?? console.error;
   const readFile = deps.readFile ?? ((path: string) => readFileSync(path, 'utf8'));
   const casesDir = deps.casesDir ?? DEFAULT_CASES_DIR;
-  const writeFile =
-    deps.writeFile ??
-    ((path: string, content: string) => {
-      const dir = path.slice(0, path.lastIndexOf('/'));
-      if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(path, content);
-    });
 
   const write = argv.includes('--write');
   const inputPath = argv.find((a) => !a.startsWith('--'));
@@ -235,9 +273,14 @@ export async function runAnonymize(argv: string[], deps: RunAnonymizeDeps = {}):
     return 0;
   }
 
-  const path = join(casesDir, `${result.case.id}.json`);
-  writeFile(path, `${JSON.stringify(result.case, null, 2)}\n`);
-  log(`Wrote ${path}`);
+  if (deps.writeFile) {
+    const path = `${casesDir}/${result.case.id}.json`;
+    deps.writeFile(path, `${JSON.stringify(result.case, null, 2)}\n`);
+    log(`Wrote ${path}`);
+  } else {
+    const path = writeGoldenCase(casesDir, result.case);
+    log(`Wrote ${path}`);
+  }
   return 0;
 }
 

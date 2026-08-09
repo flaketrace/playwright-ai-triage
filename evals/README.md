@@ -29,7 +29,9 @@ per-`boundaryType` coverage, and the judge's accuracy/precision/recall/F1/confus
 against it, each figure with a 95% Wilson-score confidence interval. A shrinking spread of
 `boundaryType`s over time, or a coverage count concentrating in `other`, means the dataset
 is drifting toward easy or unclassifiable cases — check `evals/README.md`'s own table above
-against `npm run eval:golden`'s coverage output periodically.
+against `npm run eval:golden`'s coverage output periodically. Cases whose `id` starts with
+`EXAMPLE-` (like the three illustrative cases shipped with this feature) are excluded from
+grading by `npm run eval:golden` — they exist to prove the tool works, not to be measured.
 
 ## How cases are collected and labeled
 

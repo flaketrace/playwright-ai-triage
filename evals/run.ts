@@ -1,4 +1,5 @@
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type { ClassifierClient } from '../src/classify.js';
 import { resolveConfig } from '../src/config.js';
@@ -36,7 +37,10 @@ interface GoldenEvalReport {
   unclassifiable: number;
   costUsd: number;
   coverage: Record<string, number>;
+  examplesSkipped: number;
 }
+
+const EXAMPLE_ID_PREFIX = 'EXAMPLE-';
 
 // Same cap/rationale as src/cli/eval.ts and eval/run.ts's EVAL_DRAWS.
 const DRAWS_MAX = 25;
@@ -78,8 +82,11 @@ export function formatGoldenReport(report: GoldenEvalReport, asJson: boolean): s
   for (const [type, count] of Object.entries(report.coverage).sort()) {
     lines.push(`  ${type}: ${count}`);
   }
+  const graded = report.cases - report.examplesSkipped;
   lines.push('');
-  if (report.accuracy.value === null) {
+  if (graded === 0) {
+    lines.push('Overall accuracy: no gradeable cases (every case is an excluded EXAMPLE-)');
+  } else if (report.accuracy.value === null) {
     lines.push('Overall accuracy: no gradeable cases (every case tied or unclassifiable)');
   } else {
     lines.push(
@@ -88,10 +95,16 @@ export function formatGoldenReport(report: GoldenEvalReport, asJson: boolean): s
     );
   }
   lines.push(
-    `Self-consistency: ${report.unanimous}/${report.cases} cases unanimous across ${report.draws} draws` +
+    `Self-consistency: ${report.unanimous}/${graded} graded cases unanimous across ${report.draws} draws` +
       ` · ${report.tied} tied (excluded from grading) · ${report.unclassifiable} unclassifiable`,
   );
   lines.push('');
+  if (report.examplesSkipped > 0) {
+    lines.push(
+      `${report.examplesSkipped} example case(s) excluded from grading (id starts with EXAMPLE-)`,
+    );
+    lines.push('');
+  }
   lines.push('Per-class:');
   for (const m of report.perClass) {
     const precision =
@@ -121,7 +134,7 @@ export function formatGoldenReport(report: GoldenEvalReport, asJson: boolean): s
   return lines.join('\n');
 }
 
-const DEFAULT_CASES_DIR = new URL('./golden/cases', import.meta.url).pathname;
+const DEFAULT_CASES_DIR = fileURLToPath(new URL('./golden/cases', import.meta.url));
 
 export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
@@ -157,9 +170,14 @@ export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}
   let tied = 0;
   let unclassifiable = 0;
   let costUsd = 0;
+  let examplesSkipped = 0;
   const coverage: Record<string, number> = {};
 
   for (const goldenCase of cases) {
+    if (goldenCase.id.startsWith(EXAMPLE_ID_PREFIX)) {
+      examplesSkipped += 1;
+      continue;
+    }
     coverage[goldenCase.boundaryType] = (coverage[goldenCase.boundaryType] ?? 0) + 1;
     const result = await classifyWithSelfConsistency(goldenCase.payload, config, draws, {
       client: deps.client,
@@ -190,14 +208,18 @@ export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}
     unclassifiable,
     costUsd,
     coverage,
+    examplesSkipped,
   };
 
   log(formatGoldenReport(report, asJson));
   return 0;
 }
 
+// realpathSync-resolved: import.meta.url resolves through a symlink to the
+// REAL path, but process.argv[1] does not — a plain-path comparison here
+// silently never fires under a symlinked invocation (see src/cli.ts).
 const entry = process.argv[1];
-if (entry && import.meta.url === pathToFileURL(entry).href) {
+if (entry && import.meta.url === pathToFileURL(realpathSync(entry)).href) {
   runGoldenEval(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (error) => {

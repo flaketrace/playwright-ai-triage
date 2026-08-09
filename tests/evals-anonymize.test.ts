@@ -69,6 +69,113 @@ describe('redactText', () => {
     expect(redacted).toBe('expect(received).toBe(expected)');
     expect(hits).toEqual([]);
   });
+
+  it('redacts a bare hostname that follows a DNS/network-error keyword', () => {
+    const a = redactText('getaddrinfo ENOTFOUND payments-api.acme-corp.internal', {});
+    expect(a.redacted).toBe('getaddrinfo ENOTFOUND <HOST>');
+    expect(a.hits).toContain('HOST');
+
+    const b = redactText('ECONNREFUSED db-prod.acme.cloud:5432', {});
+    expect(b.redacted).toBe('ECONNREFUSED <HOST>:5432');
+    expect(b.hits).toContain('HOST');
+  });
+
+  it('does NOT redact a bare hostname with no network-error keyword context', () => {
+    // A known, disclosed gap of the narrower context-gated pass (see the
+    // BARE_HOSTNAME comment in evals/anonymize.ts): a hostname mentioned
+    // without a preceding DNS/network-error keyword is not caught here.
+    // This is the accepted trade-off for eliminating false positives on
+    // ordinary code tokens (see the next test) — the tool's printed banner
+    // and mandatory dry-run diff review exist precisely to catch this class
+    // of miss before --write.
+    expect(redactText('host staging.acme.de timed out', {}).redacted).toBe(
+      'host staging.acme.de timed out',
+    );
+  });
+
+  it('redacts an absolute path outside /Users and /home', () => {
+    const a = redactText('at /builds/acme/checkout-e2e/tests/pay.spec.ts:9', {});
+    expect(a.redacted).toBe('at <PATH>:9');
+    expect(a.hits).toContain('PATH');
+
+    const b = redactText('at /var/lib/jenkins/workspace/acme/tests/pay.spec.ts:9', {});
+    expect(b.redacted).toBe('at <PATH>:9');
+    expect(b.hits).toContain('PATH');
+
+    const c = redactText('at /github/workspace/tests/pay.spec.ts:9', {});
+    expect(c.redacted).toBe('at <PATH>:9');
+    expect(c.hits).toContain('PATH');
+  });
+
+  it('does not redact a version or duration string after a network-error keyword', () => {
+    expect(redactText('ETIMEDOUT 30.5s elapsed', {}).redacted).toBe('ETIMEDOUT 30.5s elapsed');
+    expect(redactText('ECONNRESET v18.20.4 node', {}).redacted).toBe('ECONNRESET v18.20.4 node');
+    expect(redactText('EAI_AGAIN 3.2.1 retry', {}).redacted).toBe('EAI_AGAIN 3.2.1 retry');
+  });
+
+  it('does not leak an unlisted path root that contains a listed segment name', () => {
+    // A path rooted at something NOT in the known-roots list must stay fully
+    // untouched, even if one of ITS segments happens to match a listed root
+    // name (e.g. "workspace", "data") — matching starting mid-string there
+    // would redact only the tail and silently leave the identifying prefix
+    // (/mnt/ci, /codebuild/output/<id>) in place.
+    expect(redactText('at /mnt/ci/workspace/tests/pay.spec.ts:9', {}).redacted).toBe(
+      'at /mnt/ci/workspace/tests/pay.spec.ts:9',
+    );
+    expect(
+      redactText('at /codebuild/output/src123/workspace/tests/pay.spec.ts:9', {}).redacted,
+    ).toBe('at /codebuild/output/src123/workspace/tests/pay.spec.ts:9');
+    expect(redactText('at /srv2/data/tests/pay.spec.ts:9', {}).redacted).toBe(
+      'at /srv2/data/tests/pay.spec.ts:9',
+    );
+  });
+
+  it('redacts a file:// URL path (Node ESM stack frames use this form)', () => {
+    expect(redactText('at file:///home/runner/work/app/tests/a.spec.ts:3:5', {}).redacted).toBe(
+      'at file://<PATH>:3:5',
+    );
+    expect(
+      redactText(
+        'Cannot find module file:///builds/acme/checkout/src/util.js imported from file:///builds/acme/checkout/src/main.js',
+        {},
+      ).redacted,
+    ).toBe('Cannot find module file://<PATH> imported from file://<PATH>');
+  });
+
+  it('redacts a hostname with a punycode/IDN TLD without garbling it', () => {
+    expect(redactText('ENOTFOUND api.acme.xn--p1ai', {}).redacted).toBe('ENOTFOUND <HOST>');
+    expect(redactText('ENOTFOUND api.acme.xn--80asehdb', {}).redacted).toBe('ENOTFOUND <HOST>');
+  });
+
+  it('does not treat method calls, file references, or short-suffix identifiers as hostnames', () => {
+    expect(redactText('Error: page.click: Timeout 30000ms exceeded.', {}).redacted).toBe(
+      'Error: page.click: Timeout 30000ms exceeded.',
+    );
+    expect(redactText('locator.waitFor: Target closed', {}).redacted).toBe(
+      'locator.waitFor: Target closed',
+    );
+    expect(redactText('Received: Object.assign({a: 1})', {}).redacted).toBe(
+      'Received: Object.assign({a: 1})',
+    );
+    expect(redactText('config.ts changed; see playwright.config.ts', {}).redacted).toBe(
+      'config.ts changed; see playwright.config.ts',
+    );
+    expect(redactText('logger.info("starting checkout")', {}).redacted).toBe(
+      'logger.info("starting checkout")',
+    );
+    expect(redactText('TypeError: pattern.test is not a function', {}).redacted).toBe(
+      'TypeError: pattern.test is not a function',
+    );
+  });
+
+  it('does not treat a relative URL route or common container paths as filesystem paths', () => {
+    expect(redactText('GET /api/v1/orders returned 500', {}).redacted).toBe(
+      'GET /api/v1/orders returned 500',
+    );
+    expect(redactText('POST /checkout/session/create failed', {}).redacted).toBe(
+      'POST /checkout/session/create failed',
+    );
+  });
 });
 
 describe('redactCase', () => {
