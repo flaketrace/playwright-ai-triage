@@ -84,6 +84,37 @@ The reporter never fails your build. No API key? It degrades to a plain failure 
 down? Failures are reported as `UNCLASSIFIED`. Any internal error is logged as a warning and the
 run exits normally.
 
+## Measuring judge reliability
+
+Self-reported model confidence is known to be poorly calibrated. Two CLI commands
+(installed as the `playwright-ai-triage` bin) let you build a local, human-verified
+ground-truth dataset and measure the judge's actual accuracy against it:
+
+```bash
+# 1. label verdicts from a saved sink envelope (see "HTTP sink" above)
+AI_TRIAGE_EVAL_DATASET=./gt.jsonl npx playwright-ai-triage label --run ./run-envelope.json
+
+# 2. measure the current prompt/model against everything labeled so far
+AI_TRIAGE_EVAL_DATASET=./gt.jsonl ANTHROPIC_API_KEY=sk-... npx playwright-ai-triage eval
+```
+
+`label` walks through each not-yet-labeled failure in the envelope and asks you to
+confirm or correct its class; confirmed rows are appended to the dataset file
+(`AI_TRIAGE_EVAL_DATASET`, a local JSONL file — this is real test-failure data, so
+keep it out of version control, the same way you would the private eval CONTRIBUTING.md
+describes for prompt changes).
+
+`eval` re-classifies every labeled case fresh — `--draws=N` (default 3) independent
+draws per case at the current prompt/model — and reports overall accuracy, per-class
+precision/recall/F1 (each class separately, since FLAKY vastly outnumbers REAL_BUG in
+practice and a blended accuracy number would hide a judge that's only good at the
+common class), a confusion matrix, and a 95% Wilson confidence interval on every
+proportion so a report from 20 cases isn't read with the same confidence as one from
+2,000. `--json` emits the same report as structured JSON. The confidence reported here
+is the judge's _self-consistency_ (how often independent draws agree with each other),
+not its self-reported confidence score — pass `--draws=1` to skip the extra API calls
+if you only want a point-in-time accuracy check.
+
 ## What data is sent where
 
 Failures a script can decide never reach the API at all — they are classified locally, for
