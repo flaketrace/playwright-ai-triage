@@ -2,6 +2,33 @@ import type { Classification, FailurePayload } from './types.js';
 import { classifyFailures, type ClassifierClient } from './classify.js';
 import type { ResolvedConfig } from './config.js';
 
+// Note text emitted by classifyFailures when infrastructure (not judgment)
+// produced the result. String-coupled to src/classify.ts on purpose — the
+// tests in tests/eval-smoke.test.ts pin the coupling.
+const INFRA_NOTE = /API error|ANTHROPIC_API_KEY|refusal|max_tokens|maxFailures cap/;
+
+// The `why` strings classifyFailures stamps on fail-closed UNCLASSIFIED
+// results it produced itself. A model-chosen UNCLASSIFIED carries the model's
+// own free-text why and never matches these.
+const SENTINEL_WHY =
+  /^(no schema-valid classification returned|classifier (API error|refusal|max_tokens)|no API key available|beyond the maxFailures budget cap)$/;
+
+/**
+ * Distinguish "the model judged this" from "infrastructure got in the way".
+ * Returns a human-readable reason when the result must NOT be graded, or
+ * undefined when it is a legitimate model verdict.
+ */
+export function infraReason(
+  notes: string[],
+  classification: Classification | undefined,
+): string | undefined {
+  const note = notes.find((n) => INFRA_NOTE.test(n));
+  if (note) return note;
+  if (!classification) return 'no classification entry returned';
+  if (SENTINEL_WHY.test(classification.why)) return `sentinel result: ${classification.why}`;
+  return undefined;
+}
+
 /**
  * Collapse N draws of the same payload into one graded verdict plus the
  * agreement behind it.
@@ -64,13 +91,20 @@ export function summarizeDraws(draws: Classification[]): DrawSummary | undefined
 export interface SelfConsistencyResult {
   summary: DrawSummary;
   costUsd: number;
+  /** draws excluded because they were infra failures, not real judge verdicts */
+  erroredDraws: number;
 }
 
 /**
  * Classify one payload `draws` times independently (one API call per draw —
  * isolation: one bad call can't corrupt the others) and collapse the result
- * via summarizeDraws. Returns undefined only when zero draws produced any
- * classification at all (e.g. every call errored).
+ * via summarizeDraws. A draw whose classification is infrastructure-caused
+ * (API error, missing key, refusal, max_tokens, etc. — see `infraReason`) is
+ * excluded from the collapsed verdict: it is not a real judge draw, and
+ * accepting it would blend transport/API reliability into the judge accuracy
+ * this function exists to measure. Returns undefined when zero draws
+ * produced a real classification at all (e.g. every call errored) — there is
+ * no verdict to report, fabricated or otherwise.
  */
 export async function classifyWithSelfConsistency(
   payload: FailurePayload,
@@ -80,13 +114,18 @@ export async function classifyWithSelfConsistency(
 ): Promise<SelfConsistencyResult | undefined> {
   const collected: Classification[] = [];
   let costUsd = 0;
+  let erroredDraws = 0;
   for (let i = 0; i < draws; i += 1) {
     const result = await classifyFailures([payload], config, deps);
     const classification = result.classified[0]?.classification;
-    if (classification) collected.push(classification);
+    if (infraReason(result.notes, classification)) {
+      erroredDraws += 1;
+    } else if (classification) {
+      collected.push(classification);
+    }
     costUsd += result.costUsd ?? 0;
   }
   const summary = summarizeDraws(collected);
   if (!summary) return undefined;
-  return { summary, costUsd };
+  return { summary, costUsd, erroredDraws };
 }

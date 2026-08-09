@@ -132,6 +132,20 @@ describe('runLabel', () => {
     expect(readDataset(datasetPath)).toHaveLength(0);
   });
 
+  it('returns 2 with a dataset-path-naming message for a corrupt ground-truth dataset, instead of throwing', async () => {
+    const fs = await import('node:fs');
+    fs.writeFileSync(runPath, envelope(['a']));
+    fs.writeFileSync(datasetPath, 'not valid json\n');
+    const logs: string[] = [];
+    const code = await runLabel(['--run', runPath], {
+      env: { AI_TRIAGE_EVAL_DATASET: datasetPath },
+      errorLog: (m) => logs.push(m),
+      log: () => {},
+    });
+    expect(code).toBe(2);
+    expect(logs.join(' ')).toContain(datasetPath);
+  });
+
   it('skips fingerprints already present in the dataset', async () => {
     const fs = await import('node:fs');
     fs.writeFileSync(runPath, envelope(['a', 'b']));

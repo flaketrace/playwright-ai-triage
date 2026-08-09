@@ -171,4 +171,66 @@ describe('classifyWithSelfConsistency', () => {
     // 100 input / 50 output tokens per draw, claude-haiku-4-5 pricing ($1/$5 per 1M), 2 draws
     expect(result?.costUsd).toBeCloseTo(2 * ((100 / 1_000_000) * 1 + (50 / 1_000_000) * 5), 8);
   });
+
+  /** A client whose messages.parse always rejects — classifyFailures catches
+   * this internally and reports it as a `classifier API error` note plus a
+   * fabricated UNCLASSIFIED, never throwing. */
+  const erroringClient: ClassifierClient = {
+    messages: { parse: async () => Promise.reject(new Error('boom')) },
+  } as unknown as ClassifierClient;
+
+  it('excludes errored draws from the majority-class calculation', async () => {
+    let call = 0;
+    const client: ClassifierClient = {
+      messages: {
+        parse: async () => {
+          call += 1;
+          if (call <= 2) throw new Error('boom');
+          return {
+            parsed_output: {
+              classifications: [{ testId: 'a', class: 'REAL_BUG', confidence: 0.9, why: 'test' }],
+            },
+            usage: { input_tokens: 100, output_tokens: 50 },
+            stop_reason: 'end_turn',
+          };
+        },
+      },
+    } as unknown as ClassifierClient;
+    const result = await classifyWithSelfConsistency(basePayload, baseConfig, 3, { client });
+    expect(result?.erroredDraws).toBe(2);
+    expect(result?.summary).toMatchObject({
+      agreeing: 1,
+      total: 1,
+      classification: { class: 'REAL_BUG' },
+    });
+  });
+
+  it('counts erroredDraws correctly when some draws error', async () => {
+    let call = 0;
+    const client: ClassifierClient = {
+      messages: {
+        parse: async () => {
+          call += 1;
+          if (call === 1) throw new Error('boom');
+          return {
+            parsed_output: {
+              classifications: [{ testId: 'a', class: 'FLAKY', confidence: 0.5, why: 'test' }],
+            },
+            usage: { input_tokens: 100, output_tokens: 50 },
+            stop_reason: 'end_turn',
+          };
+        },
+      },
+    } as unknown as ClassifierClient;
+    const result = await classifyWithSelfConsistency(basePayload, baseConfig, 4, { client });
+    expect(result?.erroredDraws).toBe(1);
+    expect(result?.summary.total).toBe(3);
+  });
+
+  it('an all-errored case returns undefined instead of a fabricated unanimous UNCLASSIFIED', async () => {
+    const result = await classifyWithSelfConsistency(basePayload, baseConfig, 3, {
+      client: erroringClient,
+    });
+    expect(result).toBeUndefined();
+  });
 });

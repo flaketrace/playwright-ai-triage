@@ -34,6 +34,10 @@ interface EvalReport {
   costUsd: number;
 }
 
+// Matches eval/run.ts's EVAL_DRAWS cap: looser parsing would silently run
+// far more PAID calls than requested.
+const DRAWS_MAX = 25;
+
 function parseDraws(argv: string[], errorLog: (msg: string) => void): number {
   const flag = argv.find((a) => a.startsWith('--draws='));
   if (!flag) return 3;
@@ -43,7 +47,15 @@ function parseDraws(argv: string[], errorLog: (msg: string) => void): number {
     errorLog(`--draws=${raw} is not a positive integer — using 3.`);
     return 3;
   }
-  return parsed;
+  let draws = parsed;
+  if (draws > DRAWS_MAX) {
+    errorLog(`--draws=${raw} exceeds the ${DRAWS_MAX} cap — using ${DRAWS_MAX}.`);
+    draws = DRAWS_MAX;
+  }
+  if (draws > 1 && draws % 2 === 0) {
+    errorLog(`--draws=${draws} is even — ties are possible and are reported ungraded.`);
+  }
+  return draws;
 }
 
 function pct(n: number): string {
@@ -146,6 +158,9 @@ export async function runEval(argv: string[], deps: RunEvalDeps = {}): Promise<n
       client: deps.client,
     });
     if (!result) {
+      // Every draw errored — no real judge verdict was ever produced, so
+      // there is nothing to grade. This must not contribute a fabricated
+      // UNCLASSIFIED pair to the confusion matrix.
       unclassifiable += 1;
       continue;
     }

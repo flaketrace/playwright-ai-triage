@@ -51,3 +51,7 @@ scripts/install-git-hooks.sh
 .eval-scratch/
 scratch/
 .venv-test/
+# ground-truth eval dataset (AI_TRIAGE_EVAL_DATASET) — holds real test-failure
+# text and must never be committed to this public repo (design spec, and same
+# reasoning as CONTRIBUTING.md's "private eval" fixture set)
+*.jsonl

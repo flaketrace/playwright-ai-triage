@@ -126,6 +126,55 @@ describe('runEval', () => {
     expect(logs.join('\n')).toMatch(/0\.0%/);
   });
 
+  it('excludes API-error draws from the confusion matrix and counts an all-errored case as unclassifiable', async () => {
+    writeDataset(datasetPath, [record('a', 'REAL_BUG')]);
+    const client = {
+      messages: { parse: async () => Promise.reject(new Error('network blip')) },
+    } as unknown as ClassifierClient;
+    const logs: string[] = [];
+    const code = await runEval(['--draws=1', '--json'], {
+      env: { AI_TRIAGE_EVAL_DATASET: datasetPath, ANTHROPIC_API_KEY: 'sk-test' },
+      client,
+      log: (m) => logs.push(m),
+    });
+    expect(code).toBe(0);
+    const parsed = JSON.parse(logs.join(''));
+    expect(parsed.unclassifiable).toBe(1);
+    expect(parsed.confusion.REAL_BUG.UNCLASSIFIED).toBe(0);
+    expect(parsed.accuracy.value).toBeNull();
+  });
+
+  it('clamps --draws=500 to the 25 cap and warns', async () => {
+    writeDataset(datasetPath, [record('a', 'REAL_BUG')]);
+    const client = clientAlwaysReturns(() => 'REAL_BUG');
+    const errors: string[] = [];
+    const code = await runEval(['--draws=500', '--json'], {
+      env: { AI_TRIAGE_EVAL_DATASET: datasetPath, ANTHROPIC_API_KEY: 'sk-test' },
+      client,
+      log: () => {},
+      errorLog: (m) => errors.push(m),
+    });
+    expect(code).toBe(0);
+    expect(errors.join(' ')).toMatch(/25/);
+  });
+
+  it('warns about possible ties for an even --draws but still uses it', async () => {
+    writeDataset(datasetPath, [record('a', 'REAL_BUG')]);
+    const client = clientAlwaysReturns(() => 'REAL_BUG');
+    const errors: string[] = [];
+    const logs: string[] = [];
+    const code = await runEval(['--draws=4', '--json'], {
+      env: { AI_TRIAGE_EVAL_DATASET: datasetPath, ANTHROPIC_API_KEY: 'sk-test' },
+      client,
+      log: (m) => logs.push(m),
+      errorLog: (m) => errors.push(m),
+    });
+    expect(code).toBe(0);
+    expect(errors.join(' ')).toMatch(/even/i);
+    const parsed = JSON.parse(logs.join(''));
+    expect(parsed.draws).toBe(4);
+  });
+
   it('emits machine-readable JSON with --json', async () => {
     writeDataset(datasetPath, [record('a', 'REAL_BUG')]);
     const client = clientAlwaysReturns(() => 'REAL_BUG');

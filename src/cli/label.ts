@@ -80,7 +80,15 @@ export async function runLabel(argv: string[], deps: RunLabelDeps = {}): Promise
     return 2;
   }
 
-  const existing = readDataset(datasetPath);
+  let existing;
+  try {
+    existing = readDataset(datasetPath);
+  } catch (error) {
+    errorLog(
+      `failed to read ${datasetPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return 2;
+  }
   const seen = new Set(existing.map((r) => r.fingerprint));
   const pending = parsedEnvelope.data.failures.filter((f) => !seen.has(f.fingerprint));
 
