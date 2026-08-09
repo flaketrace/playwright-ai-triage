@@ -1,0 +1,21 @@
+{
+  "id": "EXAMPLE-flaky-as-real-bug",
+  "payload": {
+    "testId": "example-1",
+    "title": "EXAMPLE — order total updates after adding a coupon",
+    "file": "tests/example/checkout.spec.ts",
+    "line": 42,
+    "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"$81.00\"\nReceived: \"$90.00\"",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "passed" }
+    ],
+    "retryThenPassed": true,
+    "duration": 4200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 40 },
+  "humanClass": "FLAKY",
+  "boundaryType": "flaky-as-real-bug",
+  "note": "EXAMPLE — not a real case, format illustration only. This looks like a real pricing bug (wrong total, deterministic-looking assertion) but retried-and-passed plus a 15% historical failure rate on this specific test point to a discount-recalculation race that only sometimes loses, not a broken discount rule. A one-shot pass/fail read alone would have called this REAL_BUG."
+}

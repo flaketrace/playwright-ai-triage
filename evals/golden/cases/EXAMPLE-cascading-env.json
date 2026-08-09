@@ -1,0 +1,22 @@
+{
+  "id": "EXAMPLE-cascading-env",
+  "payload": {
+    "testId": "example-3",
+    "title": "EXAMPLE — search results render for a known query",
+    "file": "tests/example/search.spec.ts",
+    "line": 30,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(3)\n\nLocator: getByTestId('search-result-row')\nExpected: 3\nReceived: 0",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [{ "status": 503, "method": "GET", "url": "https://example.test/api/search" }],
+    "duration": 10200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 12, "totalRuns": 40 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "EXAMPLE — not a real case, format illustration only. Zero results reads like an empty-state UI bug at first glance, but the trace's failedRequests shows the search API itself returned 503 — the UI never had data to render. A 30%-of-recent-runs failure rate confirms this tracks a flapping backend dependency, not the UI code under test."
+}
