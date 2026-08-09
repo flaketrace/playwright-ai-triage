@@ -29,8 +29,7 @@ export function wilsonInterval(successes: number, total: number, z = 1.96): Inte
   const z2 = z * z;
   const denom = 1 + z2 / total;
   const center = (phat + z2 / (2 * total)) / denom;
-  const margin =
-    (z / denom) * Math.sqrt(phat * (1 - phat) / total + z2 / (4 * total * total));
+  const margin = (z / denom) * Math.sqrt((phat * (1 - phat)) / total + z2 / (4 * total * total));
   return {
     low: Math.max(0, center - margin),
     high: Math.min(1, center + margin),
