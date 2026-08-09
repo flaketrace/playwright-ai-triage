@@ -3,8 +3,8 @@
 `evals/` is a public, curated benchmark for `playwright-ai-triage`'s classifier. Unlike
 `eval/` (synthetic smoke fixtures, checks the prompt hasn't obviously regressed) or
 `AI_TRIAGE_EVAL_DATASET` (a private, per-user live-labeled dataset), this one is meant to
-be shared, reviewed, and grown by anyone — see the main [README](../README.md#measuring-judge-reliability)
-for how those three relate.
+be shared, reviewed, and grown by anyone — see the main
+[README](../README.md#adding-your-own-cases-to-the-eval-dataset) for how those three relate.
 
 ## What "golden" means here
 

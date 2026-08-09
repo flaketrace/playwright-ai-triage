@@ -5,9 +5,21 @@
 [![CI](https://github.com/flaketrace/playwright-ai-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/flaketrace/playwright-ai-triage/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/playwright-ai-triage)](LICENSE)
 
-A [Playwright](https://playwright.dev) reporter that classifies every test failure with an LLM —
-`REAL_BUG` / `FLAKY` / `SELECTOR_DRIFT` / `ENV_ISSUE` — and posts a short, human-readable summary
-to stdout, a GitHub PR comment, or Slack.
+A CI run goes red. Someone has to work out why: read the assertion, check whether it's a
+known flake, decide whether a locator moved, or just re-run and hope. That decision is a
+judgment call, not something a rule can encode — the same "element not found" error is
+produced by a renamed selector, a disabled feature flag, a backend outage, and a genuine
+bug that broke rendering. Deterministic heuristics catch the easy fraction of this
+(retried-then-passed is very likely `FLAKY`; a bare network-error signature is very likely
+`ENV_ISSUE`) but the cases that actually cost engineering time — the ambiguous ones — sit
+exactly where heuristics run out.
+
+`playwright-ai-triage` is a [Playwright](https://playwright.dev) reporter that classifies
+every test failure into one of five explicit classes — `REAL_BUG`, `FLAKY`,
+`SELECTOR_DRIFT`, `ENV_ISSUE`, `UNCLASSIFIED` — using deterministic heuristics first (free,
+and correct often enough to skip the model entirely) and an LLM judge for whatever the
+heuristics can't decide, then posts a short, human-readable summary to stdout, a GitHub PR
+comment, or Slack.
 
 ![Example AI triage summary in the reporter's output format](docs/assets/hero-demo.gif)
 
@@ -15,12 +27,106 @@ _Illustrative example of the output format (static version:
 [hero-comment.png](docs/assets/hero-comment.png)) — in CI the summary lands as a single
 auto-updating comment on your PR (as exercised by this repo's own integration CI on every pull request)._
 
+This is LLM-as-judge, not LLM-as-magic: the taxonomy is fixed and closed, the evidence the
+judge is allowed to see is enumerated (see [What data is sent where](#what-data-is-sent-where)),
+and the prompt is versioned and evaluated like any other piece of logic that changes
+behavior — [`CONTRIBUTING.md`](CONTRIBUTING.md) requires eval evidence, not intuition,
+before a prompt change merges. See [How much to trust this](#how-much-to-trust-this) below
+for what "evaluated" means in practice and what the judge still gets wrong.
+
 Self-hosted by design: you bring your own Anthropic API key, and your test results are processed
 inside your own CI. There is no hosted platform behind this package. Failure text is sent to two
 kinds of destinations, both under your control: the Anthropic API (for classification, minimal
 redacted text only) and the outputs you enable (your GitHub PR, your Slack webhook).
 
-## Usage
+## How much to trust this
+
+Self-reported model confidence is known to be poorly calibrated — a judge that says "0.9
+confidence" is not 90% likely to be right just because it said so. This project doesn't use
+that number for anything measured here. What it measures instead is **self-consistency**: N
+independent draws of the same failure at temperature > 0, and how often those draws agree
+with each other. Disagreement across draws is an empirically-grounded signal that the input
+was ambiguous to the model; a self-reported score is not.
+
+Two tools measure judge accuracy against human-verified ground truth, computing the same
+statistics both times: overall accuracy, per-class precision/recall/F1 (reported per class,
+not blended — `FLAKY` vastly outnumbers `REAL_BUG` in real projects, and a blended number
+hides a judge that's only good at the common class), a confusion matrix, and a 95%
+Wilson-score confidence interval on every proportion, so a report built from 15 cases isn't
+read with the same confidence as one from 1,500.
+
+- `npx playwright-ai-triage eval` measures against **your own** labeled failures. This is
+  the number that matters for your codebase — nobody else's failure shapes substitute for
+  it. See [Adding your own cases to the eval dataset](#adding-your-own-cases-to-the-eval-dataset).
+- `npm run eval:golden` measures against [`evals/`](evals/README.md), a public benchmark of
+  hand-picked **hard-boundary** cases — failures chosen specifically because they look like
+  one class but are actually another (a flake that reads like a real bug, drift that reads
+  like a flake, an environment failure that reads like a UI bug). Easy cases prove nothing;
+  any reasonable classifier gets those right.
+
+**Current state of the public benchmark, stated plainly**: `evals/golden/cases/` ships with
+three synthetic example cases only, illustrating the format and the three boundary
+categories — no real cases have landed yet, and `npm run eval:golden` has nothing to grade
+until they do. The honest number to publish here right now is _none yet_. This section will
+carry real figures once real cases are added; until then, run `eval` against your own
+`AI_TRIAGE_EVAL_DATASET` today for a number that's already meaningful for your project — the
+workflow is identical either way.
+
+**What evidence-driven prompt iteration looks like on this project, concretely**: prompt
+v003 tagged every backend `5xx`/`409` seen during setup/seed calls as `REAL_BUG`. A dogfood
+round against a real backend-outage CI run caught it — on an 11-case eval built from those
+real failures, v003 scored 46% weighted accuracy with roughly 5 false `REAL_BUG` alarms per
+run. Prompt v004 (server errors are `ENV_ISSUE` by default; `REAL_BUG` only for the exact
+endpoint the test asserts on) lifted that to ~97% with zero dangerous misses on the same
+eval, while a genuine-bug control case still classified correctly — no over-correction. Full
+note in [`CHANGELOG.md`](CHANGELOG.md) (0.3.3). That eval is a private, maintainer-run set,
+not the public `evals/` benchmark — cited here as the standard this project holds a prompt
+change to, not as a general accuracy claim you should extrapolate from.
+
+Known judge failure modes, stated here rather than left for you to discover:
+
+- **Hedges when evidence is thin.** Given only an error message and stack — no DOM snippet,
+  no failed-request data, no diff — "element not found" is genuinely undecidable between a
+  rename, a disabled flag, and a broken render. The judge is instructed to say so rather
+  than commit to a confident wrong answer. See
+  [How much evidence you give it](#how-much-evidence-you-give-it) for the fields that
+  resolve this ambiguity, and don't read a hedged verdict as the judge being broken before
+  checking what it was actually given.
+- **Self-consistency measures agreement, not correctness.** Five draws agreeing is evidence
+  the judge isn't guessing randomly on that input; it is not proof the agreed answer is
+  right. Only comparison against human-labeled ground truth (`eval` / `eval:golden`) speaks
+  to correctness.
+- **No inter-rater agreement on the public golden dataset yet.** A single labeler's
+  judgment on a case chosen specifically because it's easy to misjudge has no built-in
+  check on itself — this is disclosed, not hidden, in
+  [`evals/README.md`](evals/README.md#inter-rater-agreement), along with the dataset's other
+  known biases (small-N statistical ceiling, English-only text, one project's failure
+  shapes, no real screenshot content).
+
+## Limitations and known failure modes
+
+These are product-level limitations, distinct from the judge-accuracy caveats above:
+
+- Sharded runs (`--shard`): each shard posts its own summary section; cross-shard merging is
+  out of scope for v1.
+- Fork PRs: GitHub Actions gives forked-repo workflows a read-only `GITHUB_TOKEN`, so the PR
+  comment output is skipped there (stdout still works). Maintainer-branch PRs are unaffected.
+- Non-GitHub CI: `stdout` and `slack` outputs work everywhere; the PR comment output is
+  GitHub only.
+- Job-level failures: a CI job's pass/fail status is not the same signal as "the reporter
+  had something to say." A failure that stops the job before Playwright ever runs (a build
+  error, a dependency install failure) means genuinely zero reporter output — there was
+  nothing for it to see. But a CI backend losing its connection to the runner mid-job, or a
+  step timing out, can independently fail the _job_ even when Playwright ran to completion
+  and the reporter already triaged real failures and printed its summary — verified by
+  re-reading a nightly run's own logs where the job went red from a runner comms drop, yet
+  the reporter had already triaged 3 failures earlier in that same run. Don't infer "the
+  reporter found nothing" from "the job is red" without checking; wire a separate job-level
+  failure notification (e.g. a status check, an issue-bot step, a Slack webhook on
+  `if: failure()`) for the failure classes upstream of or independent from Playwright, which
+  the reporter structurally cannot see.
+
+## Quick start
 
 ```bash
 npm i -D playwright-ai-triage
@@ -47,7 +153,7 @@ permissions:
   pull-requests: write
 ```
 
-## Configuration
+### Configuration
 
 The full option surface (auto-detection covers everything else):
 
@@ -84,42 +190,7 @@ The reporter never fails your build. No API key? It degrades to a plain failure 
 down? Failures are reported as `UNCLASSIFIED`. Any internal error is logged as a warning and the
 run exits normally.
 
-## Measuring judge reliability
-
-Self-reported model confidence is known to be poorly calibrated. Two CLI commands
-(installed as the `playwright-ai-triage` bin) let you build a local, human-verified
-ground-truth dataset and measure the judge's actual accuracy against it:
-
-```bash
-# 1. label verdicts from a saved sink envelope (see "HTTP sink" above)
-AI_TRIAGE_EVAL_DATASET=./gt.jsonl npx playwright-ai-triage label --run ./run-envelope.json
-
-# 2. measure the current prompt/model against everything labeled so far
-AI_TRIAGE_EVAL_DATASET=./gt.jsonl ANTHROPIC_API_KEY=sk-... npx playwright-ai-triage eval
-```
-
-`label` walks through each not-yet-labeled failure in the envelope and asks you to
-confirm or correct its class; confirmed rows are appended to the dataset file
-(`AI_TRIAGE_EVAL_DATASET`, a local JSONL file — this is real test-failure data, so
-keep it out of version control, the same way you would the private eval CONTRIBUTING.md
-describes for prompt changes).
-
-`eval` re-classifies every labeled case fresh — `--draws=N` (default 3) independent
-draws per case at the current prompt/model — and reports overall accuracy, per-class
-precision/recall/F1 (each class separately, since FLAKY vastly outnumbers REAL_BUG in
-practice and a blended accuracy number would hide a judge that's only good at the
-common class), a confusion matrix, and a 95% Wilson confidence interval on every
-proportion so a report from 20 cases isn't read with the same confidence as one from
-2,000. `--json` emits the same report as structured JSON. The confidence reported here
-is the judge's _self-consistency_ (how often independent draws agree with each other),
-not its self-reported confidence score — pass `--draws=1` to skip the extra API calls
-if you only want a point-in-time accuracy check.
-
-For a public, shared benchmark instead of your own private dataset, see
-[`evals/`](evals/README.md) — a curated set of hard-boundary cases and the tooling to grow
-it safely (`npm run eval:golden`).
-
-## What data is sent where
+### What data is sent where
 
 Failures a script can decide never reach the API at all — they are classified locally, for
 free: passed-on-retry (`FLAKY`), pure network-error signatures (`ENV_ISSUE`), and explicit
@@ -160,7 +231,7 @@ Never sent anywhere: screenshots, videos, trace files, your source code beyond t
 above. Media files are referenced by local path in the summary, never uploaded. A trace is read
 locally for the failed-request lines described above and is never uploaded itself.
 
-## How much evidence you give it
+### How much evidence you give it
 
 Three payload fields are opt-in, and they are the ones that separate the ambiguous classes.
 Without them a great many real failures reduce to "this element was not there", which is
@@ -193,7 +264,7 @@ test failed; since 0.8.0 the snapshot is truncated middle-out, keeping a short h
 identity plus the tail. Below the budget the two behave identically, so this matters exactly on
 the large snapshots that tend to accompany a hard failure.
 
-## After a fix
+### After a fix
 
 Re-run just the failures — not the whole suite:
 
@@ -205,7 +276,7 @@ The PR comment upserts in place: the fixed finding moves to ✅ resolved, anythi
 failing stays ⏳ persisting without being re-announced, and a fully green re-run flips the
 comment to "all clear ✅". Your next scheduled full run re-validates everything else.
 
-## How this compares to hosted platforms
+### How this compares to hosted platforms
 
 Hosted test-analytics platforms (Currents, TestDino, Trunk, and similar) and this reporter
 solve overlapping problems in different shapes:
@@ -222,25 +293,43 @@ If you want dashboards and long-term analytics today, a hosted platform is the r
 you want your next red PR triaged with nothing leaving your control beyond the model API you
 already configure, this is.
 
-## Known limitations
+## Adding your own cases to the eval dataset
 
-- Sharded runs (`--shard`): each shard posts its own summary section; cross-shard merging is out
-  of scope for v1.
-- Fork PRs: GitHub Actions gives forked-repo workflows a read-only `GITHUB_TOKEN`, so the PR
-  comment output is skipped there (stdout still works). Maintainer-branch PRs are unaffected.
-- Non-GitHub CI: `stdout` and `slack` outputs work everywhere; the PR comment output is GitHub
-  only.
-- Job-level failures: a CI job's pass/fail status is not the same signal as "the reporter had
-  something to say." A failure that stops the job before Playwright ever runs (a build error, a
-  dependency install failure) means genuinely zero reporter output — there was nothing for it to
-  see. But a CI backend losing its connection to the runner mid-job, or a step timing out, can
-  independently fail the _job_ even when Playwright ran to completion and the reporter already
-  triaged real failures and printed its summary — verified by re-reading a nightly run's own logs
-  where the job went red from a runner comms drop, yet the reporter had already triaged 3
-  failures earlier in that same run. Don't infer "the reporter found nothing" from "the job is
-  red" without checking; wire a separate job-level failure notification (e.g. a status check, an
-  issue-bot step, a Slack webhook on `if: failure()`) for the failure classes upstream of or
-  independent from Playwright, which the reporter structurally cannot see.
+Two ways to build ground truth, depending on whether it's for you alone or for everyone.
+
+### Your own private dataset
+
+```bash
+# 1. label verdicts from a saved sink envelope (see "HTTP sink" above)
+AI_TRIAGE_EVAL_DATASET=./gt.jsonl npx playwright-ai-triage label --run ./run-envelope.json
+
+# 2. measure the current prompt/model against everything labeled so far
+AI_TRIAGE_EVAL_DATASET=./gt.jsonl ANTHROPIC_API_KEY=sk-... npx playwright-ai-triage eval
+```
+
+`label` walks through each not-yet-labeled failure in the envelope and asks you to
+confirm or correct its class; confirmed rows are appended to the dataset file
+(`AI_TRIAGE_EVAL_DATASET`, a local JSONL file — this is real test-failure data, so
+keep it out of version control, the same way you would the private eval
+[`CONTRIBUTING.md`](CONTRIBUTING.md) describes for prompt changes).
+
+`eval` re-classifies every labeled case fresh — `--draws=N` (default 3) independent
+draws per case at the current prompt/model — and reports the same accuracy/precision/
+recall/F1/confidence-interval statistics described in
+[How much to trust this](#how-much-to-trust-this). `--json` emits the same report as
+structured JSON. `--draws=1` skips the extra API calls if you only want a point-in-time
+accuracy check rather than a self-consistency read.
+
+### The public, shared benchmark
+
+`evals/` is the repository-wide equivalent — a curated set of hard-boundary cases anyone
+can measure against, not gated behind having your own labeled dataset first. Contributing a
+case never means committing raw failure text: `tsx evals/anonymize.ts <raw-case.json>`
+redacts PII (hosts, emails, tokens, absolute paths) and prints a diff of every proposed
+change for manual review; nothing is written to `evals/golden/cases/` until you re-run it
+with `--write` after checking that diff by hand. See [`evals/README.md`](evals/README.md)
+for the full schema, the `boundaryType` taxonomy a case needs to fit, and the dataset's own
+disclosed biases and gaps.
 
 ## License
 
