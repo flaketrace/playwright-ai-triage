@@ -1,0 +1,21 @@
+{
+  "id": "EXAMPLE-drift-as-flaky",
+  "payload": {
+    "testId": "example-2",
+    "title": "EXAMPLE — account menu opens from the header",
+    "file": "tests/example/nav.spec.ts",
+    "line": 18,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByTestId('nav-account-menu')\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "duration": 10500
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 40 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "EXAMPLE — not a real case, format illustration only. A timeout waiting for an element superficially reads as flaky (a common FLAKY shape), but zero prior failures in 40 runs plus a consistent-across-both-attempts 'not found' (not an intermittent visibility flicker) point to the test-id being renamed in a recent header refactor, not timing variance."
+}

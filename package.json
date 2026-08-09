@@ -57,6 +57,7 @@
     "prepublishOnly": "npm run gate",
     "release": "npm run build && changeset publish",
     "eval:smoke": "tsx eval/run.ts",
+    "eval:golden": "tsx evals/run.ts",
     "test:scripts": "python3 -m unittest discover -s .github/scripts -p 'test_*.py'"
   },
   "peerDependencies": {
