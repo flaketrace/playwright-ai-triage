@@ -64,6 +64,17 @@ export interface FailurePayload {
 
 export type FailureClass = 'REAL_BUG' | 'FLAKY' | 'SELECTOR_DRIFT' | 'ENV_ISSUE' | 'UNCLASSIFIED';
 
+/** Runtime enumeration of FailureClass — single source of truth for anything
+ * that needs to iterate all classes (confusion matrices, ground-truth
+ * validation, CLI prompts) instead of hand-copying the union. */
+export const FAILURE_CLASSES: FailureClass[] = [
+  'REAL_BUG',
+  'FLAKY',
+  'SELECTOR_DRIFT',
+  'ENV_ISSUE',
+  'UNCLASSIFIED',
+];
+
 /** Schema-validated classifier output; anything that fails validation becomes UNCLASSIFIED. */
 export interface Classification {
   class: FailureClass;
