@@ -29,7 +29,7 @@ import { resolveConfig } from '../src/config.js';
 import { PROMPT_VERSION } from '../src/prompt.js';
 import type { Classification } from '../src/types.js';
 
-import { summarizeDraws, type DrawSummary } from './draws.js';
+import { summarizeDraws, type DrawSummary } from '../src/reliability.js';
 import { evalExitCode } from './exit.js';
 import { SMOKE_FIXTURES } from './fixtures.js';
 import { grade } from './grade.js';

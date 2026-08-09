@@ -1,14 +1,16 @@
-import type { Classification } from '../src/types.js';
+import type { Classification } from './types.js';
 
 /**
- * Collapse N draws of the same fixture into one graded verdict plus the
- * agreement behind it (§14.2b).
+ * Collapse N draws of the same payload into one graded verdict plus the
+ * agreement behind it.
  *
  * Classification is a draw from a distribution — sampling parameters are not
- * configurable on current-generation models — so a single-draw eval reports a
+ * configurable on current-generation models — so a single-draw call reports a
  * point estimate whose variance it cannot see. Grading the majority and
- * reporting `agreeing/total` makes an unstable fixture visible even when the
- * accuracy column looks perfect.
+ * reporting `agreeing/total` makes an unstable case visible even when a
+ * single-shot accuracy figure looks perfect. This is the self-consistency
+ * confidence signal used in place of the model's self-reported confidence,
+ * which is known to be poorly calibrated.
  *
  * Pure: no IO, no clock, no randomness.
  */
@@ -24,10 +26,10 @@ export interface DrawSummary {
    * true when the top class does not lead outright — its count is shared with a
    * runner-up (1-1, 1-1-1, 2-2-1). NOTE this is a shared-top test, not a
    * strict-majority test: a 2-1-1-1 plurality has no majority yet is graded on
-   * its modal class, which is what the harness asks for. The fixture
-   * is INDETERMINATE: picking the first-seen class would decide pass/fail — and
-   * the process exit code — by which draw happened to return first, which is the
-   * exact coin-flip this measurement exists to expose. Callers must not grade it.
+   * its modal class, which is what callers ask for. A tied case is
+   * INDETERMINATE: picking the first-seen class would decide pass/fail by
+   * which draw happened to return first, which is the exact coin-flip this
+   * measurement exists to expose. Callers must not grade it.
    */
   tied: boolean;
 }
