@@ -1,4 +1,6 @@
-import type { Classification } from './types.js';
+import type { Classification, FailurePayload } from './types.js';
+import { classifyFailures, type ClassifierClient } from './classify.js';
+import type { ResolvedConfig } from './config.js';
 
 /**
  * Collapse N draws of the same payload into one graded verdict plus the
@@ -57,4 +59,34 @@ export function summarizeDraws(draws: Classification[]): DrawSummary | undefined
     unstable: agreeing < draws.length,
     tied,
   };
+}
+
+export interface SelfConsistencyResult {
+  summary: DrawSummary;
+  costUsd: number;
+}
+
+/**
+ * Classify one payload `draws` times independently (one API call per draw —
+ * isolation: one bad call can't corrupt the others) and collapse the result
+ * via summarizeDraws. Returns undefined only when zero draws produced any
+ * classification at all (e.g. every call errored).
+ */
+export async function classifyWithSelfConsistency(
+  payload: FailurePayload,
+  config: ResolvedConfig,
+  draws: number,
+  deps: { client?: ClassifierClient } = {},
+): Promise<SelfConsistencyResult | undefined> {
+  const collected: Classification[] = [];
+  let costUsd = 0;
+  for (let i = 0; i < draws; i += 1) {
+    const result = await classifyFailures([payload], config, deps);
+    const classification = result.classified[0]?.classification;
+    if (classification) collected.push(classification);
+    costUsd += result.costUsd ?? 0;
+  }
+  const summary = summarizeDraws(collected);
+  if (!summary) return undefined;
+  return { summary, costUsd };
 }
