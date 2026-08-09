@@ -9,7 +9,8 @@ const rawPayload = (overrides: Partial<FailurePayload> = {}): FailurePayload => 
   title: 'checkout redirects to https://internal-billing.example-corp.com/pay',
   file: '/Users/alice/work/repo/tests/checkout.spec.ts',
   line: 5,
-  errorMessage: 'Request to https://api.example-corp.com/v1/orders failed: contact ops@example-corp.com',
+  errorMessage:
+    'Request to https://api.example-corp.com/v1/orders failed: contact ops@example-corp.com',
   stack: 'Bearer sk-live-abcdefghijklmnopqrstuvwx used at 10.0.0.42',
   retries: [{ attempt: 0, status: 'failed' }],
   retryThenPassed: false,
@@ -80,7 +81,13 @@ describe('redactCase', () => {
     expect(cleaned.note).not.toContain('reporter@example-corp.com');
     const fields = diffs.map((d) => d.field);
     expect(fields).toEqual(
-      expect.arrayContaining(['payload.title', 'payload.file', 'payload.errorMessage', 'payload.stack', 'note']),
+      expect.arrayContaining([
+        'payload.title',
+        'payload.file',
+        'payload.errorMessage',
+        'payload.stack',
+        'note',
+      ]),
     );
   });
 
@@ -145,7 +152,14 @@ describe('runAnonymize', () => {
 
   it('dry-run (no --write) does not call writeFile', async () => {
     let wrote = false;
-    const code = await runAnonymize(['case.json'], deps({ writeFile: () => { wrote = true; } }));
+    const code = await runAnonymize(
+      ['case.json'],
+      deps({
+        writeFile: () => {
+          wrote = true;
+        },
+      }),
+    );
     expect(code).toBe(0);
     expect(wrote).toBe(false);
   });
@@ -174,7 +188,10 @@ describe('runAnonymize', () => {
   });
 
   it('returns 2 when the input does not match the GoldenCase schema', async () => {
-    const code = await runAnonymize(['case.json'], deps({ readFile: () => JSON.stringify({ id: 'bad' }) }));
+    const code = await runAnonymize(
+      ['case.json'],
+      deps({ readFile: () => JSON.stringify({ id: 'bad' }) }),
+    );
     expect(code).toBe(2);
   });
 });

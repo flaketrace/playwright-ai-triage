@@ -21,7 +21,10 @@ const WINDOWS_PATH = /[A-Za-z]:\\(?:[^\s'":\\]+\\)*[^\s'":\\]+/g;
  * (email/host/IP/path), which src/redact.ts has no reason to know about
  * since it runs on live classifier input, not archival dataset text.
  */
-export function redactText(text: string, env: Record<string, string | undefined>): { redacted: string; hits: RedactionKind[] } {
+export function redactText(
+  text: string,
+  env: Record<string, string | undefined>,
+): { redacted: string; hits: RedactionKind[] } {
   const hits: RedactionKind[] = [];
 
   const afterSecrets = redact(text, env);
@@ -59,22 +62,73 @@ interface FieldAccessor {
 }
 
 const FIELDS: FieldAccessor[] = [
-  { name: 'payload.title', get: (c) => c.payload.title, set: (c, v) => { c.payload.title = v; } },
-  { name: 'payload.file', get: (c) => c.payload.file, set: (c, v) => { c.payload.file = v; } },
-  { name: 'payload.errorMessage', get: (c) => c.payload.errorMessage, set: (c, v) => { c.payload.errorMessage = v; } },
-  { name: 'payload.stack', get: (c) => c.payload.stack, set: (c, v) => { c.payload.stack = v; } },
-  { name: 'payload.failingStep', get: (c) => c.payload.failingStep, set: (c, v) => { c.payload.failingStep = v; } },
-  { name: 'payload.diffSummary', get: (c) => c.payload.diffSummary, set: (c, v) => { c.payload.diffSummary = v; } },
+  {
+    name: 'payload.title',
+    get: (c) => c.payload.title,
+    set: (c, v) => {
+      c.payload.title = v;
+    },
+  },
+  {
+    name: 'payload.file',
+    get: (c) => c.payload.file,
+    set: (c, v) => {
+      c.payload.file = v;
+    },
+  },
+  {
+    name: 'payload.errorMessage',
+    get: (c) => c.payload.errorMessage,
+    set: (c, v) => {
+      c.payload.errorMessage = v;
+    },
+  },
+  {
+    name: 'payload.stack',
+    get: (c) => c.payload.stack,
+    set: (c, v) => {
+      c.payload.stack = v;
+    },
+  },
+  {
+    name: 'payload.failingStep',
+    get: (c) => c.payload.failingStep,
+    set: (c, v) => {
+      c.payload.failingStep = v;
+    },
+  },
+  {
+    name: 'payload.diffSummary',
+    get: (c) => c.payload.diffSummary,
+    set: (c, v) => {
+      c.payload.diffSummary = v;
+    },
+  },
   // domSnippet is free-form HTML and just as likely to carry hrefs/emails as
   // any other free-text field — redacted even though it wasn't spelled out
   // in the original field list, on the same reasoning as the other fields.
-  { name: 'payload.domSnippet', get: (c) => c.payload.domSnippet, set: (c, v) => { c.payload.domSnippet = v; } },
-  { name: 'note', get: (c) => c.note, set: (c, v) => { c.note = v; } },
+  {
+    name: 'payload.domSnippet',
+    get: (c) => c.payload.domSnippet,
+    set: (c, v) => {
+      c.payload.domSnippet = v;
+    },
+  },
+  {
+    name: 'note',
+    get: (c) => c.note,
+    set: (c, v) => {
+      c.note = v;
+    },
+  },
 ];
 
 /** Validates raw input against goldenCaseSchema, redacts every free-text
  * field, and returns the cleaned case plus a diff per field that changed. */
-export function redactCase(raw: unknown, env: Record<string, string | undefined>): { case: GoldenCase; diffs: FieldDiff[] } {
+export function redactCase(
+  raw: unknown,
+  env: Record<string, string | undefined>,
+): { case: GoldenCase; diffs: FieldDiff[] } {
   const parsed = goldenCaseSchema.parse(raw);
   const cleaned: GoldenCase = JSON.parse(JSON.stringify(parsed));
   const diffs: FieldDiff[] = [];
@@ -143,7 +197,9 @@ export async function runAnonymize(argv: string[], deps: RunAnonymizeDeps = {}):
   try {
     raw = JSON.parse(readFile(inputPath));
   } catch (error) {
-    errorLog(`failed to read/parse ${inputPath}: ${error instanceof Error ? error.message : String(error)}`);
+    errorLog(
+      `failed to read/parse ${inputPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return 2;
   }
 
@@ -151,7 +207,9 @@ export async function runAnonymize(argv: string[], deps: RunAnonymizeDeps = {}):
   try {
     result = redactCase(raw, env);
   } catch (error) {
-    errorLog(`${inputPath} does not match the GoldenCase schema: ${error instanceof Error ? error.message : String(error)}`);
+    errorLog(
+      `${inputPath} does not match the GoldenCase schema: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return 2;
   }
 

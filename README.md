@@ -115,6 +115,10 @@ is the judge's _self-consistency_ (how often independent draws agree with each o
 not its self-reported confidence score — pass `--draws=1` to skip the extra API calls
 if you only want a point-in-time accuracy check.
 
+For a public, shared benchmark instead of your own private dataset, see
+[`evals/`](evals/README.md) — a curated set of hard-boundary cases and the tooling to grow
+it safely (`npm run eval:golden`).
+
 ## What data is sent where
 
 Failures a script can decide never reach the API at all — they are classified locally, for

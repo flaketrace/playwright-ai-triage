@@ -12,7 +12,9 @@
       { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
-    "failedRequests": [{ "status": 503, "method": "GET", "url": "https://example.test/api/search" }],
+    "failedRequests": [
+      { "status": 503, "method": "GET", "url": "https://example.test/api/search" }
+    ],
     "duration": 10200
   },
   "historicalFailureRate": { "failedInLastNRuns": 12, "totalRuns": 40 },

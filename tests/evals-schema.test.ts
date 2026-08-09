@@ -4,7 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { goldenCaseSchema, readGoldenCases, writeGoldenCase, type GoldenCase } from '../evals/schema.js';
+import {
+  goldenCaseSchema,
+  readGoldenCases,
+  writeGoldenCase,
+  type GoldenCase,
+} from '../evals/schema.js';
 import type { FailurePayload } from '../src/types.js';
 
 const payload = (id: string): FailurePayload => ({
@@ -47,7 +52,11 @@ describe('goldenCaseSchema', () => {
     const withExtras = {
       ...validCase('b'),
       historicalFailureRate: { failedInLastNRuns: 3, totalRuns: 20 },
-      screenshots: { count: 2, dimensions: [{ width: 1280, height: 720 }], capturedAtOffsetMs: [500, 900] },
+      screenshots: {
+        count: 2,
+        dimensions: [{ width: 1280, height: 720 }],
+        capturedAtOffsetMs: [500, 900],
+      },
     };
     expect(goldenCaseSchema.safeParse(withExtras).success).toBe(true);
   });
@@ -58,6 +67,7 @@ describe('goldenCaseSchema', () => {
   });
 
   it('rejects a missing note', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { note: _note, ...bad } = validCase('d');
     expect(goldenCaseSchema.safeParse(bad).success).toBe(false);
   });

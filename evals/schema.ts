@@ -10,12 +10,19 @@ import { failureClassSchema, failurePayloadSchema } from '../src/groundTruth.js'
  * novel boundary shapes, but a dataset that leans on it heavily has stopped
  * curating and started dumping — see evals/README.md's coverage table.
  */
-export const BOUNDARY_TYPES = ['flaky-as-real-bug', 'drift-as-flaky', 'cascading-env', 'other'] as const;
+export const BOUNDARY_TYPES = [
+  'flaky-as-real-bug',
+  'drift-as-flaky',
+  'cascading-env',
+  'other',
+] as const;
 export type BoundaryType = (typeof BOUNDARY_TYPES)[number];
 
 const screenshotMetaSchema = z.object({
   count: z.number().int().nonnegative(),
-  dimensions: z.array(z.object({ width: z.number().int().positive(), height: z.number().int().positive() })),
+  dimensions: z.array(
+    z.object({ width: z.number().int().positive(), height: z.number().int().positive() }),
+  ),
   capturedAtOffsetMs: z.array(z.number().nonnegative()),
 });
 
