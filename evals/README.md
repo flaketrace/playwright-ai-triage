@@ -35,17 +35,29 @@ grading by `npm run eval:golden` — they exist to prove the tool works, not to 
 
 ## How cases are collected and labeled
 
-Cases originate from the maintainer's own Playwright runs. Raw cases (real error text,
-stack traces, file paths) never enter this repository directly — they're anonymized first
-via `evals/anonymize.ts` (`tsx evals/anonymize.ts <raw-case.json>`), which prints a diff of
-every proposed redaction for manual review before anything is written, and only writes with
-an explicit `--write` flag. See that file's own documentation comment for exactly what it
-does and does not catch.
+Every case declares its provenance via a required `synthetic` field (`evals/schema.ts`).
+There are two tracks:
 
-Labeling is currently **single-rater**: the maintainer assigns `humanClass` and writes the
-`note` explaining why. Cases from client/production systems are held to an additional gate
-— they are added only with the data owner's explicit, case-by-case authorization, never
-inferred as an automatic next step from having built this tooling.
+**Real cases** (`synthetic: false`) originate from the maintainer's own Playwright runs.
+Raw cases (real error text, stack traces, file paths) never enter this repository directly
+— they're anonymized first via `evals/anonymize.ts` (`tsx evals/anonymize.ts
+<raw-case.json>`), which prints a diff of every proposed redaction for manual review before
+anything is written, and only writes with an explicit `--write` flag. See that file's own
+documentation comment for exactly what it does and does not catch. Cases from
+client/production systems are held to an additional gate — they are added only with the
+data owner's explicit, case-by-case authorization, never inferred as an automatic next step
+from having built this tooling. As of this writing, no real cases have cleared that gate
+yet — every graded case in this dataset is currently synthetic (see below and `npm run
+eval:golden`'s composition line).
+
+**Synthetic-but-realistic cases** (`synthetic: true`) are hand-authored: invented app
+scenarios and failure payloads shaped like real Playwright output, written to give the eval
+tooling a first real accuracy signal without waiting on real-case data clearance. They are
+explicitly not from any real system — see "What's missing / where this dataset is biased"
+below for what that means for trusting the numbers.
+
+Labeling is currently **single-rater** for both tracks: whoever authors a case (real or
+synthetic) assigns `humanClass` and writes the `note` explaining why.
 
 ## Inter-rater agreement
 
@@ -60,6 +72,14 @@ and `note`, and Cohen's κ is computed on the overlap. Until that happens, treat
 
 Being explicit about this is the difference between a benchmark and marketing:
 
+- **Every graded case is currently synthetic.** `npm run eval:golden`'s accuracy numbers
+  today reflect the judge's performance on hand-authored, invented-but-realistic scenarios
+  — not verified production failures. Synthetic cases are still curated for genuinely hard
+  boundaries (see "What 'golden' means here" above), so they're not meaningless, but a
+  judge that's well-tuned to one author's idea of what a hard case looks like is not the
+  same claim as a judge verified against real-world failure data. Real, NDA-cleared cases
+  are the intended next step, not a hypothetical one — see "How cases are collected and
+  labeled" above.
 - **No inter-rater agreement figure** (see above) — labeling reliability itself is
   unverified.
 - **Small-N statistical ceiling.** With on the order of tens of cases, per-class confidence
