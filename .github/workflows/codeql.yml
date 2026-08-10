@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "17 3 * * 1"
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: read
@@ -27,4 +27,4 @@ jobs:
           languages: ${{ matrix.language }}
       - uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{ matrix.language }}"
+          category: '/language:${{ matrix.language }}'
