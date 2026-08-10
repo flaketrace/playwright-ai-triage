@@ -8,15 +8,12 @@
     "line": 54,
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('revenue-total')\nExpected: \"$128,400\"\nReceived: \"$114,900\"",
     "stack": "",
-    "retries": [
-      { "attempt": 0, "status": "failed" },
-      { "attempt": 1, "status": "passed" }
-    ],
-    "retryThenPassed": true,
+    "retries": [{ "attempt": 0, "status": "failed" }],
+    "retryThenPassed": false,
     "duration": 2600
   },
   "historicalFailureRate": { "failedInLastNRuns": 4, "totalRuns": 50 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "A specific wrong dollar figure reads like a calculation bug, but the chart library animates the counter upward over roughly 800ms and the assertion fires mid-tween. Retried-and-passed plus a low, steady historical rate (never a spike, always near the same count) confirm timing, not a bad total — a real calculation bug would show the same wrong final value every run; this one differs every time it fails."
+  "note": "A specific wrong dollar figure reads like a calculation bug — and this run only failed once, so there's no retry-then-passed to lean on. But the chart library animates the counter upward over roughly 800ms and the assertion fires mid-tween: an intermittent, low, steady 4-in-50 historical rate is inconsistent with a bad calculation, which would produce the same wrong total deterministically on every run, not fail occasionally. That instability matches timing, not a broken total."
 }

@@ -66,8 +66,9 @@ read with the same confidence as one from 1,500.
   like a flake, an environment failure that reads like a UI bug). Easy cases prove nothing;
   any reasonable classifier gets those right.
 
-**Current state of the public benchmark, stated plainly**: `evals/golden/cases/` has 12
-graded cases (4 each across the three boundary categories) plus 3 illustrative
+**Current state of the public benchmark, stated plainly**: `evals/golden/cases/` has 13
+graded cases (4 each across the three boundary categories, plus 1 under `other` testing
+that a failed request isn't automatically `ENV_ISSUE`) plus 3 illustrative
 `EXAMPLE-*` cases excluded from grading — but every graded case today is **synthetic**
 (hand-authored, not from a real system; see [`evals/README.md`](evals/README.md#how-cases-are-collected-and-labeled)).
 `npm run eval:golden`'s report states this composition explicitly on every run, and no real,

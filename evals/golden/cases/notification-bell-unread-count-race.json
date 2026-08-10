@@ -8,15 +8,12 @@
     "line": 61,
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('unread-count')\nExpected: \"1\"\nReceived: \"0\"",
     "stack": "",
-    "retries": [
-      { "attempt": 0, "status": "failed" },
-      { "attempt": 1, "status": "passed" }
-    ],
-    "retryThenPassed": true,
+    "retries": [{ "attempt": 0, "status": "failed" }],
+    "retryThenPassed": false,
     "duration": 4400
   },
   "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 48 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "An unread count stuck at 0 looks like the notification never registered — a real bug. But the badge is driven by two independent sources: an initial REST fetch on page load and a websocket push for new events; when the push arrives before the initial fetch resolves, the fetch response briefly overwrites the pushed count with a stale 0 before self-correcting. Retried-then-passed and a steady ~12.5% rate confined to page-load-adjacent assertions match a load-order race, not lost notifications."
+  "note": "An unread count stuck at 0 looks like the notification never registered — a real bug — and this run recorded one failure, with no retry evidence either way. But the badge is driven by two independent sources: an initial REST fetch on page load and a websocket push for new events; when the push arrives before the initial fetch resolves, the fetch's response briefly overwrites the pushed count with a stale 0 before self-correcting. A steady ~12.5% historical rate confined to page-load-adjacent assertions — intermittent, not zero, not dominant — doesn't match a lost-notification bug, which would reproduce whenever the same trigger fires; it matches a load-order race instead."
 }

@@ -1,0 +1,22 @@
+{
+  "id": "search-flaky-with-incidental-analytics-error",
+  "synthetic": true,
+  "payload": {
+    "testId": "search-3",
+    "title": "search results list shows all matches after typing a query",
+    "file": "tests/search/results-list.spec.ts",
+    "line": 55,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(4)\n\nLocator: getByTestId('search-result-row')\nExpected: 4\nReceived: 2",
+    "stack": "",
+    "retries": [{ "attempt": 0, "status": "failed" }],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 404, "method": "POST", "url": "https://example.test/api/analytics/beacon" }
+    ],
+    "duration": 5200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 44 },
+  "humanClass": "FLAKY",
+  "boundaryType": "other",
+  "note": "The search grid renders half the expected rows, and a failedRequests entry shows a failed request during the same run — evidence that would normally point toward cascading-env's 'backend is down, so the UI has nothing to render' pattern. But the failing request is a POST to an analytics beacon endpoint (fire-and-forget post-render telemetry, decoupled from the results-fetch endpoint that actually feeds this locator), and the results-fetch call itself is absent from failedRequests — it succeeded. The real cause is a client-side debounce-then-rerender race: the assertion sometimes fires between the search input's debounced re-query and the list's final repaint. A 13.6% historical rate on this exact assertion, unrelated to the beacon endpoint's own reliability, is the tell that this is ordinary UI timing noise wearing a backend-failure costume — not every failedRequests entry is causal, and treating 'a failed request happened somewhere in this run' as sufficient evidence for ENV_ISSUE is exactly the shortcut this case exists to catch."
+}
