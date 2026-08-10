@@ -1,0 +1,25 @@
+{
+  "id": "dashboard-analytics-api-503",
+  "synthetic": true,
+  "payload": {
+    "testId": "dash-2",
+    "title": "analytics chart renders weekly traffic",
+    "file": "tests/dashboard/analytics-chart.spec.ts",
+    "line": 35,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByTestId('analytics-chart-canvas')\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 503, "method": "GET", "url": "https://example.test/api/analytics/weekly" }
+    ],
+    "duration": 10500
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 9, "totalRuns": 40 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "A chart canvas that never renders looks like a client-side rendering bug — bad data silently crashing the chart library — but the weekly-analytics endpoint returned 503 on both attempts. The chart component correctly renders nothing because it never received data to draw. The 22.5% historical rate tracks a known-flaky analytics service, not the chart component."
+}

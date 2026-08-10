@@ -1,0 +1,25 @@
+{
+  "id": "search-filters-config-api-500",
+  "synthetic": true,
+  "payload": {
+    "testId": "search-2",
+    "title": "search filter panel lists available categories",
+    "file": "tests/search/filters.spec.ts",
+    "line": 20,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(5)\n\nLocator: getByTestId('filter-option')\nExpected: 5\nReceived: 0",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 500, "method": "GET", "url": "https://example.test/api/filters/config" }
+    ],
+    "duration": 10200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 14, "totalRuns": 45 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "An empty filter panel reads like a broken empty-state or a data bug, but failedRequests shows the filters-config endpoint returning 500 on every attempt — the panel has nothing to render because its data source is down, not because the empty-state logic misfires. A roughly 31% recent failure rate confirms a flapping backend dependency, not a stable UI defect."
+}

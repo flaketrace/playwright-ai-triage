@@ -1,0 +1,25 @@
+{
+  "id": "calendar-events-api-504",
+  "synthetic": true,
+  "payload": {
+    "testId": "cal-1",
+    "title": "calendar view renders this week's events",
+    "file": "tests/calendar/week-view.spec.ts",
+    "line": 44,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(3)\n\nLocator: getByTestId('calendar-event')\nExpected: 3\nReceived: 0",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 504, "method": "GET", "url": "https://example.test/api/calendar/events" }
+    ],
+    "duration": 10600
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 8, "totalRuns": 44 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "Zero events rendered looks like a date-range calculation bug — querying the wrong week — but the calendar-events endpoint returned a 504 gateway timeout on both attempts; the backend never answered in time, so there was no event data to render regardless of which week was requested. The roughly 18% historical rate tracks a gateway that periodically times out under load, not the calendar view's date logic."
+}
