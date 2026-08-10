@@ -13,10 +13,12 @@
       { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
+    "domSnippet": "button \"Notifications\" [ref=e14] (expanded: false)",
+    "diffSummary": "src/components/settings/SettingsPanel.tsx changed 5 days ago (tab strip replaced with a collapsible accordion; tab role removed from all section headers)",
     "duration": 5150
   },
   "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 38 },
   "humanClass": "SELECTOR_DRIFT",
   "boundaryType": "drift-as-flaky",
-  "note": "Both attempts fail identically on 'element(s) not found', not an intermittent visibility toggle, and neither attempt diverges from the other the way this dataset's flaky-as-real-bug cases do. Settings recently moved from a tab strip to a collapsible accordion, so a role of 'tab' no longer exists on that page at all; there is no timing element to be flaky about. This is distinguished from a true flake by the failure being structural (the element's role was removed) rather than transient."
+  "note": "Both attempts fail identically on 'element(s) not found', not an intermittent visibility toggle. But the domSnippet shows a collapsed 'Notifications' button, not a 'tab' — an accordion header sits where the tab used to be, and diffSummary confirms SettingsPanel.tsx changed 5 days ago, replacing the tab strip with an accordion. A role of 'tab' no longer exists on this page at all; this is a structural rename, not timing variance."
 }

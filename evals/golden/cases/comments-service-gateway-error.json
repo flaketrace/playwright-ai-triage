@@ -1,5 +1,5 @@
 {
-  "id": "comments-service-connection-failure",
+  "id": "comments-service-gateway-error",
   "synthetic": true,
   "payload": {
     "testId": "comments-1",
@@ -14,12 +14,12 @@
     ],
     "retryThenPassed": false,
     "failedRequests": [
-      { "status": 0, "method": "GET", "url": "https://example.test/api/comments" }
+      { "status": 502, "method": "GET", "url": "https://example.test/api/comments" }
     ],
     "duration": 10400
   },
   "historicalFailureRate": { "failedInLastNRuns": 11, "totalRuns": 42 },
   "humanClass": "ENV_ISSUE",
   "boundaryType": "cascading-env",
-  "note": "An empty comment thread reads like a broken empty state or an off-by-one query, but failedRequests shows the comments API request failing at the connection level (status 0, no HTTP response at all) rather than returning an empty list — the service was unreachable, not the UI mishandling a valid empty response."
+  "note": "An empty comment thread reads like a broken empty state or an off-by-one query, but failedRequests shows the comments API request returned 502 Bad Gateway — the gateway in front of the comments service couldn't reach it, so the UI never received real data to render, not a broken empty-state path."
 }

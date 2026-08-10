@@ -18,7 +18,7 @@ Each case is tagged with a `boundaryType`:
 | `boundaryType`      | What it tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `flaky-as-real-bug` | A failure that reads like a deterministic bug (specific wrong value, clean assertion) but is actually a race — repeated failures landing on _different_ specific values is the tell graded cases use. (Retried-and-passed is also a real-world signal, but `src/heuristics.ts` classifies it as `FLAKY` before the judge ever runs, so a graded case built on that signal alone would never exercise the judge — see the `EXAMPLE-flaky-as-real-bug` illustration case, which uses it precisely because it's excluded from grading.) |
-| `drift-as-flaky`    | A failure that reads like ordinary timing flakiness (a timeout) but is actually a renamed/removed selector — a failure that repeats _identically_ across retries (no divergence between attempts) is the tell, in contrast to `flaky-as-real-bug`'s differing-values pattern.                                                                                                                                                                                                                                                        |
+| `drift-as-flaky`    | A failure that reads like ordinary timing flakiness (a timeout) but is actually a renamed/removed selector — an identical failure across retries plus positive rename evidence (`domSnippet` showing the replacement element, `diffSummary` touching that component) is the tell. Without that positive evidence, the classifier's own system prompt correctly hedges toward `ENV_ISSUE` rather than guessing `SELECTOR_DRIFT` — cases in this dataset carry the evidence for exactly that reason.                                   |
 | `cascading-env`     | A UI-level failure (empty state, wrong count) that is actually caused by a backend/environment problem — a `failedRequests` entry _causally connected to the failing locator's own data source_ is the tell. Not every `failedRequests` entry qualifies: an unrelated request failing incidentally in the same run isn't evidence (see `search-flaky-with-incidental-analytics-error`, tagged `other`, which exists to test exactly that distinction).                                                                               |
 | `other`             | A hard boundary that doesn't fit the three above. Kept as an escape hatch, not a place to dump ambiguous-but-not-actually-hard cases.                                                                                                                                                                                                                                                                                                                                                                                                |
 
@@ -86,10 +86,20 @@ Being explicit about this is the difference between a benchmark and marketing:
   intervals (see `npm run eval:golden`'s output) are wide, especially for the least-common
   classes. A single-digit-point accuracy change between runs is well within noise; don't
   read a headline percentage without its interval.
-- **Skewed toward the source project's own failure shapes.** These cases come from one
-  person's Playwright suites. They are not a random sample of "all possible Playwright
-  failures" — a different tech stack, UI framework, or test style will hit boundary shapes
-  this dataset doesn't represent at all.
+- **Skewed toward a single author's failure-shape vocabulary.** Every graded case today
+  is invented rather than sampled from any real Playwright suite, so they are not a random
+  sample of "all possible Playwright failures" — a different tech stack, UI framework, or
+  test style will hit boundary shapes this dataset doesn't represent at all.
+- **Small-N cases can still be separable by a combination of fields, not just one.**
+  Earlier drafts of this dataset were each caught having a single field (`retryThenPassed`,
+  an invisible `historicalFailureRate` citation, `errorHead` presence, `duration`) that
+  alone separated every class with no exceptions — each was found and fixed by re-checking
+  the shipped cases against every payload field by hand. At 13 graded cases, a specific
+  _combination_ of fields can still do the same thing even with no single field doing it
+  alone; this was found to be true here and disclosed rather than chased further, since
+  eliminating it completely is a small-N structural limit, not a one-off oversight. A
+  near-perfect `eval:golden` score on this dataset should be read with that in mind until
+  it grows past what one person can exhaustively check by hand.
 - **English-only error text.** Locator names, assertion messages, and stack traces are all
   English; the judge's behavior on other languages is untested here.
 - **No real screenshot content.** `screenshots` records geometry, count, and capture
