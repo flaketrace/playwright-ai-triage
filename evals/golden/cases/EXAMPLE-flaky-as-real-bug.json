@@ -18,5 +18,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 40 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "EXAMPLE — not a real case, format illustration only. This looks like a real pricing bug (wrong total, deterministic-looking assertion) but retried-and-passed plus a 15% historical failure rate on this specific test point to a discount-recalculation race that only sometimes loses, not a broken discount rule. A one-shot pass/fail read alone would have called this REAL_BUG."
+  "note": "EXAMPLE — not a real case, format illustration only. This looks like a real pricing bug (wrong total, deterministic-looking assertion) but retried-and-passed points to a discount-recalculation race that only sometimes loses, not a broken discount rule. A one-shot pass/fail read alone would have called this REAL_BUG."
 }

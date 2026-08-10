@@ -1,0 +1,24 @@
+{
+  "id": "upload-progress-bar-component-swap",
+  "synthetic": true,
+  "payload": {
+    "testId": "upload-1",
+    "title": "upload progress bar appears while a file uploads",
+    "file": "tests/upload/file-upload.spec.ts",
+    "line": 40,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByTestId('upload-progress-bar')\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "domSnippet": "status \"Uploading…\" [ref=e9]",
+    "diffSummary": "package.json changed 4 days ago (@legacy/progress-bar removed, @vendor/upload-widget added); src/components/upload/FileUpload.tsx changed same day (progress indicator swapped to the new package, no test-id carried over)",
+    "duration": 10100
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 42 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "Reads like the classic 'waited for an async thing that hasn't happened yet' flake, but both attempts report the identical 'element(s) not found' failure with nothing distinguishing one attempt from the other. The domSnippet shows an 'Uploading…' status element present in the DOM — a progress indicator does exist, just not the one the locator was written against — and diffSummary confirms FileUpload.tsx was updated the same day a new vendor upload-widget package replaced the old one, with no test-id carried over. The old locator's target no longer exists; this is a component swap, not timing."
+}

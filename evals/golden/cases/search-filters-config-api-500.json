@@ -1,0 +1,29 @@
+{
+  "id": "search-filters-config-api-500",
+  "synthetic": true,
+  "payload": {
+    "testId": "search-2",
+    "title": "search filter panel lists available categories",
+    "file": "tests/search/filters.spec.ts",
+    "line": 20,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(5)\n\nLocator: getByTestId('filter-option')\nExpected: 5\nReceived: 0",
+    "stack": "",
+    "retries": [
+      {
+        "attempt": 0,
+        "status": "failed",
+        "errorHead": "Timed out 10000ms waiting for expect(locator).toHaveCount(5)\n\nLocator: getByTestId('filter-option')\nExpected: 5\nReceived: 2"
+      },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 500, "method": "GET", "url": "https://example.test/api/filters/config" }
+    ],
+    "duration": 10200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 14, "totalRuns": 45 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "An empty filter panel reads like a broken empty-state or a data bug, and the two attempts even land on different received counts (2, then 0) — the kind of instability the flaky-as-real-bug cases in this dataset use as evidence for a race. But failedRequests shows the filters-config endpoint returning 500 on the reported attempt, and the varying partial count is consistent with a backend flapping between partially answering and failing outright, not with a client-side rendering race: the panel has nothing reliable to render because its data source itself is unstable, not because the empty-state logic misfires. Differing values across attempts point to a race only when there's no corresponding backend failure to explain them — here there is."
+}

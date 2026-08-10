@@ -1,0 +1,24 @@
+{
+  "id": "settings-tabs-restructured-accordion",
+  "synthetic": true,
+  "payload": {
+    "testId": "settings-1",
+    "title": "notifications settings tab opens",
+    "file": "tests/settings/tabs.spec.ts",
+    "line": 22,
+    "errorMessage": "Timed out 5000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByRole('tab', { name: 'Notifications' })\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "domSnippet": "button \"Notifications\" [ref=e14] (expanded: false)",
+    "diffSummary": "src/components/settings/SettingsPanel.tsx changed 5 days ago (tab strip replaced with a collapsible accordion; tab role removed from all section headers)",
+    "duration": 5150
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 38 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "Both attempts fail identically on 'element(s) not found', not an intermittent visibility toggle. But the domSnippet shows a collapsed 'Notifications' button, not a 'tab' — an accordion header sits where the tab used to be, and diffSummary confirms SettingsPanel.tsx changed 5 days ago, replacing the tab strip with an accordion. A role of 'tab' no longer exists on this page at all; this is a structural rename, not timing variance."
+}

@@ -66,11 +66,16 @@ read with the same confidence as one from 1,500.
   like a flake, an environment failure that reads like a UI bug). Easy cases prove nothing;
   any reasonable classifier gets those right.
 
-**Current state of the public benchmark, stated plainly**: `evals/golden/cases/` ships with
-three synthetic example cases only, illustrating the format and the three boundary
-categories — no real cases have landed yet, and `npm run eval:golden` has nothing to grade
-until they do. The honest number to publish here right now is _none yet_. This section will
-carry real figures once real cases are added; until then, run `eval` against your own
+**Current state of the public benchmark, stated plainly**: `evals/golden/cases/` has 13
+graded cases (4 each across the three boundary categories, plus 1 under `other` testing
+that a failed request isn't automatically `ENV_ISSUE`) plus 3 illustrative
+`EXAMPLE-*` cases excluded from grading — but every graded case today is **synthetic**
+(hand-authored, not from a real system; see [`evals/README.md`](evals/README.md#how-cases-are-collected-and-labeled)).
+`npm run eval:golden`'s report states this composition explicitly on every run, and no real,
+NDA-cleared cases have landed yet. Treat any number it reports today as "how the judge does
+on hand-picked hard cases one author could imagine," not as a verified real-world accuracy
+figure — see [`evals/README.md`'s bias section](evals/README.md#whats-missing--where-this-dataset-is-biased)
+for what that gap means. Until real cases land, run `eval` against your own
 `AI_TRIAGE_EVAL_DATASET` today for a number that's already meaningful for your project — the
 workflow is identical either way.
 

@@ -1,0 +1,24 @@
+{
+  "id": "pagination-button-replaced-infinite-scroll",
+  "synthetic": true,
+  "payload": {
+    "testId": "list-1",
+    "title": "next page button advances the results list",
+    "file": "tests/search/pagination.spec.ts",
+    "line": 48,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByRole('button', { name: 'Next page' })\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "domSnippet": "status \"Loading more results…\" [ref=e30]",
+    "diffSummary": "src/components/search/ResultsList.tsx changed 6 days ago (pagination controls removed; replaced with an IntersectionObserver-driven infinite-scroll loader)",
+    "duration": 10300
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 36 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "Superficially a timeout-shaped flake, but the domSnippet shows a 'Loading more results…' status element in place of any pagination button, and diffSummary confirms ResultsList.tsx changed 6 days ago, replacing pagination controls with an infinite-scroll loader. Both attempts report the identical not-found failure with no divergence between them — the 'Next page' button wasn't hidden or slow to render, it was removed entirely. A UI redesign outrunning the test suite, not variance."
+}

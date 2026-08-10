@@ -38,6 +38,8 @@ interface GoldenEvalReport {
   costUsd: number;
   coverage: Record<string, number>;
   examplesSkipped: number;
+  syntheticGraded: number;
+  realGraded: number;
 }
 
 const EXAMPLE_ID_PREFIX = 'EXAMPLE-';
@@ -102,6 +104,13 @@ export function formatGoldenReport(report: GoldenEvalReport, asJson: boolean): s
   if (report.examplesSkipped > 0) {
     lines.push(
       `${report.examplesSkipped} example case(s) excluded from grading (id starts with EXAMPLE-)`,
+    );
+    lines.push('');
+  }
+  if (graded > 0) {
+    lines.push(
+      `${report.syntheticGraded}/${graded} graded cases are synthetic (${report.realGraded} real)` +
+        ' — see evals/README.md\'s "How cases are collected and labeled" for what that means.',
     );
     lines.push('');
   }
@@ -171,6 +180,8 @@ export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}
   let unclassifiable = 0;
   let costUsd = 0;
   let examplesSkipped = 0;
+  let syntheticGraded = 0;
+  let realGraded = 0;
   const coverage: Record<string, number> = {};
 
   for (const goldenCase of cases) {
@@ -179,6 +190,11 @@ export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}
       continue;
     }
     coverage[goldenCase.boundaryType] = (coverage[goldenCase.boundaryType] ?? 0) + 1;
+    if (goldenCase.synthetic) {
+      syntheticGraded += 1;
+    } else {
+      realGraded += 1;
+    }
     const result = await classifyWithSelfConsistency(goldenCase.payload, config, draws, {
       client: deps.client,
     });
@@ -209,6 +225,8 @@ export async function runGoldenEval(argv: string[], deps: RunGoldenEvalDeps = {}
     costUsd,
     coverage,
     examplesSkipped,
+    syntheticGraded,
+    realGraded,
   };
 
   log(formatGoldenReport(report, asJson));

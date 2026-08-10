@@ -169,7 +169,12 @@ const FIELDS: FieldAccessor[] = [
 ];
 
 /** Validates raw input against goldenCaseSchema, redacts every free-text
- * field, and returns the cleaned case plus a diff per field that changed. */
+ * field, and returns the cleaned case plus a diff per field that changed.
+ * `synthetic` is a required field with no default, so the raw input must
+ * set it explicitly either way — but this tool exists for the real-case
+ * path (see evals/README.md's "How cases are collected and labeled"), so
+ * a maintainer preparing a raw case here should set `synthetic: false`.
+ * Not enforced by the schema itself: nothing here rejects `true`. */
 export function redactCase(
   raw: unknown,
   env: Record<string, string | undefined>,

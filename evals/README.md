@@ -15,12 +15,12 @@ reasonable classifier gets it right, so it can't tell a good judge from a medioc
 
 Each case is tagged with a `boundaryType`:
 
-| `boundaryType`      | What it tests                                                                                                                                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `flaky-as-real-bug` | A failure that reads like a deterministic bug (specific wrong value, clean assertion) but is actually a race — retried-and-passed or a nonzero historical failure rate is the tell.                         |
-| `drift-as-flaky`    | A failure that reads like ordinary timing flakiness (a timeout) but is actually a renamed/removed selector — a _consistent_ "not found" across retries and zero prior history is the tell.                  |
-| `cascading-env`     | A UI-level failure (empty state, wrong count) that is actually caused by a backend/environment problem — a `failedRequests` entry or a spike in historical failure rate across unrelated tests is the tell. |
-| `other`             | A hard boundary that doesn't fit the three above. Kept as an escape hatch, not a place to dump ambiguous-but-not-actually-hard cases.                                                                       |
+| `boundaryType`      | What it tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `flaky-as-real-bug` | A failure that reads like a deterministic bug (specific wrong value, clean assertion) but is actually a race — repeated failures landing on _different_ specific values is the tell graded cases use. (Retried-and-passed is also a real-world signal, but `src/heuristics.ts` classifies it as `FLAKY` before the judge ever runs, so a graded case built on that signal alone would never exercise the judge — see the `EXAMPLE-flaky-as-real-bug` illustration case, which uses it precisely because it's excluded from grading.) |
+| `drift-as-flaky`    | A failure that reads like ordinary timing flakiness (a timeout) but is actually a renamed/removed selector — an identical failure across retries plus positive rename evidence (`domSnippet` showing the replacement element, `diffSummary` touching that component) is the tell. Without that positive evidence, the classifier's own system prompt correctly hedges toward `ENV_ISSUE` rather than guessing `SELECTOR_DRIFT` — cases in this dataset carry the evidence for exactly that reason.                                   |
+| `cascading-env`     | A UI-level failure (empty state, wrong count) that is actually caused by a backend/environment problem — a `failedRequests` entry _causally connected to the failing locator's own data source_ is the tell. Not every `failedRequests` entry qualifies: an unrelated request failing incidentally in the same run isn't evidence (see `search-flaky-with-incidental-analytics-error`, tagged `other`, which exists to test exactly that distinction).                                                                               |
+| `other`             | A hard boundary that doesn't fit the three above. Kept as an escape hatch, not a place to dump ambiguous-but-not-actually-hard cases.                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## Coverage
 
@@ -35,17 +35,29 @@ grading by `npm run eval:golden` — they exist to prove the tool works, not to 
 
 ## How cases are collected and labeled
 
-Cases originate from the maintainer's own Playwright runs. Raw cases (real error text,
-stack traces, file paths) never enter this repository directly — they're anonymized first
-via `evals/anonymize.ts` (`tsx evals/anonymize.ts <raw-case.json>`), which prints a diff of
-every proposed redaction for manual review before anything is written, and only writes with
-an explicit `--write` flag. See that file's own documentation comment for exactly what it
-does and does not catch.
+Every case declares its provenance via a required `synthetic` field (`evals/schema.ts`).
+There are two tracks:
 
-Labeling is currently **single-rater**: the maintainer assigns `humanClass` and writes the
-`note` explaining why. Cases from client/production systems are held to an additional gate
-— they are added only with the data owner's explicit, case-by-case authorization, never
-inferred as an automatic next step from having built this tooling.
+**Real cases** (`synthetic: false`) originate from the maintainer's own Playwright runs.
+Raw cases (real error text, stack traces, file paths) never enter this repository directly
+— they're anonymized first via `evals/anonymize.ts` (`tsx evals/anonymize.ts
+<raw-case.json>`), which prints a diff of every proposed redaction for manual review before
+anything is written, and only writes with an explicit `--write` flag. See that file's own
+documentation comment for exactly what it does and does not catch. Cases from
+client/production systems are held to an additional gate — they are added only with the
+data owner's explicit, case-by-case authorization, never inferred as an automatic next step
+from having built this tooling. As of this writing, no real cases have cleared that gate
+yet — every graded case in this dataset is currently synthetic (see below and `npm run
+eval:golden`'s composition line).
+
+**Synthetic-but-realistic cases** (`synthetic: true`) are hand-authored: invented app
+scenarios and failure payloads shaped like real Playwright output, written to give the eval
+tooling a first real accuracy signal without waiting on real-case data clearance. They are
+explicitly not from any real system — see "What's missing / where this dataset is biased"
+below for what that means for trusting the numbers.
+
+Labeling is currently **single-rater** for both tracks: whoever authors a case (real or
+synthetic) assigns `humanClass` and writes the `note` explaining why.
 
 ## Inter-rater agreement
 
@@ -60,16 +72,34 @@ and `note`, and Cohen's κ is computed on the overlap. Until that happens, treat
 
 Being explicit about this is the difference between a benchmark and marketing:
 
+- **Every graded case is currently synthetic.** `npm run eval:golden`'s accuracy numbers
+  today reflect the judge's performance on hand-authored, invented-but-realistic scenarios
+  — not verified production failures. Synthetic cases are still curated for genuinely hard
+  boundaries (see "What 'golden' means here" above), so they're not meaningless, but a
+  judge that's well-tuned to one author's idea of what a hard case looks like is not the
+  same claim as a judge verified against real-world failure data. Real, NDA-cleared cases
+  are the intended next step, not a hypothetical one — see "How cases are collected and
+  labeled" above.
 - **No inter-rater agreement figure** (see above) — labeling reliability itself is
   unverified.
 - **Small-N statistical ceiling.** With on the order of tens of cases, per-class confidence
   intervals (see `npm run eval:golden`'s output) are wide, especially for the least-common
   classes. A single-digit-point accuracy change between runs is well within noise; don't
   read a headline percentage without its interval.
-- **Skewed toward the source project's own failure shapes.** These cases come from one
-  person's Playwright suites. They are not a random sample of "all possible Playwright
-  failures" — a different tech stack, UI framework, or test style will hit boundary shapes
-  this dataset doesn't represent at all.
+- **Skewed toward a single author's failure-shape vocabulary.** Every graded case today
+  is invented rather than sampled from any real Playwright suite, so they are not a random
+  sample of "all possible Playwright failures" — a different tech stack, UI framework, or
+  test style will hit boundary shapes this dataset doesn't represent at all.
+- **Small-N cases can still be separable by a combination of fields, not just one.**
+  Earlier drafts of this dataset were each caught having a single field (`retryThenPassed`,
+  an invisible `historicalFailureRate` citation, `errorHead` presence, `duration`) that
+  alone separated every class with no exceptions — each was found and fixed by re-checking
+  the shipped cases against every payload field by hand. At 13 graded cases, a specific
+  _combination_ of fields can still do the same thing even with no single field doing it
+  alone; this was found to be true here and disclosed rather than chased further, since
+  eliminating it completely is a small-N structural limit, not a one-off oversight. A
+  near-perfect `eval:golden` score on this dataset should be read with that in mind until
+  it grows past what one person can exhaustively check by hand.
 - **English-only error text.** Locator names, assertion messages, and stack traces are all
   English; the judge's behavior on other languages is untested here.
 - **No real screenshot content.** `screenshots` records geometry, count, and capture

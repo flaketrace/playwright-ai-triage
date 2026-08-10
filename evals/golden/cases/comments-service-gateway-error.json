@@ -1,0 +1,25 @@
+{
+  "id": "comments-service-gateway-error",
+  "synthetic": true,
+  "payload": {
+    "testId": "comments-1",
+    "title": "comment thread loads existing comments",
+    "file": "tests/comments/thread.spec.ts",
+    "line": 18,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(4)\n\nLocator: getByTestId('comment-item')\nExpected: 4\nReceived: 0",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "failedRequests": [
+      { "status": 502, "method": "GET", "url": "https://example.test/api/comments" }
+    ],
+    "duration": 10400
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 11, "totalRuns": 42 },
+  "humanClass": "ENV_ISSUE",
+  "boundaryType": "cascading-env",
+  "note": "An empty comment thread reads like a broken empty state or an off-by-one query, but failedRequests shows the comments API request returned 502 Bad Gateway — the gateway in front of the comments service couldn't reach it, so the UI never received real data to render, not a broken empty-state path."
+}

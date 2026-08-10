@@ -1,0 +1,26 @@
+{
+  "id": "notification-bell-unread-count-race",
+  "synthetic": true,
+  "payload": {
+    "testId": "notif-1",
+    "title": "notification bell shows unread count after a new alert",
+    "file": "tests/notifications/bell.spec.ts",
+    "line": 61,
+    "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('unread-count')\nExpected: \"1\"\nReceived: \"0\"",
+    "stack": "",
+    "retries": [
+      {
+        "attempt": 0,
+        "status": "failed",
+        "errorHead": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('unread-count')\nExpected: \"1\"\nReceived: \"2\""
+      },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "duration": 4400
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 48 },
+  "humanClass": "FLAKY",
+  "boundaryType": "flaky-as-real-bug",
+  "note": "An unread count stuck at 0 looks like the notification never registered — a real bug. But the two failed attempts land on two different wrong counts — 2 on the first attempt, 0 on the reported one — not a stable undercount repeating. A lost-notification bug would show the same missing-notification shape every attempt; landing on an overcount on the first attempt is inconsistent with a notification that never arrived, and instead matches a load-order race between an initial REST fetch on page load and a websocket push for new events, with the assertion catching a different relative ordering of the two sources each time."
+}

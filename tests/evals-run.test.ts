@@ -179,4 +179,43 @@ describe('runGoldenEval', () => {
     expect(parsed.accuracy.value).toBeCloseTo(1, 5);
     expect(parsed.perClass).toHaveLength(5);
   });
+
+  it('reports the synthetic/real composition of graded cases', async () => {
+    writeFileSync(
+      join(dir, 'a.json'),
+      JSON.stringify({ ...goldenCase('a', 'REAL_BUG'), synthetic: true }),
+    );
+    writeFileSync(
+      join(dir, 'b.json'),
+      JSON.stringify({ ...goldenCase('b', 'FLAKY'), synthetic: false }),
+    );
+    const client = clientAlwaysReturns(() => 'REAL_BUG');
+    const logs: string[] = [];
+    const code = await runGoldenEval(['--draws=1', '--json'], {
+      env: { ANTHROPIC_API_KEY: 'sk-test' },
+      casesDir: dir,
+      client,
+      log: (m) => logs.push(m),
+    });
+    expect(code).toBe(0);
+    const parsed = JSON.parse(logs.join(''));
+    expect(parsed.syntheticGraded).toBe(1);
+    expect(parsed.realGraded).toBe(1);
+  });
+
+  it('includes the synthetic composition line in the human-readable report', async () => {
+    writeFileSync(join(dir, 'a.json'), JSON.stringify(goldenCase('a', 'REAL_BUG')));
+    const client = clientAlwaysReturns(() => 'REAL_BUG');
+    const logs: string[] = [];
+    const code = await runGoldenEval(['--draws=1'], {
+      env: { ANTHROPIC_API_KEY: 'sk-test' },
+      casesDir: dir,
+      client,
+      log: (m) => logs.push(m),
+    });
+    expect(code).toBe(0);
+    expect(logs.join('\n')).toMatch(
+      /1\/1 graded cases are synthetic \(0 real\) — see evals\/README\.md's "How cases are collected and labeled"/,
+    );
+  });
 });
