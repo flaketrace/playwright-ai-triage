@@ -9,7 +9,11 @@
     "errorMessage": "Timed out 10000ms waiting for expect(locator).toHaveCount(5)\n\nLocator: getByTestId('filter-option')\nExpected: 5\nReceived: 0",
     "stack": "",
     "retries": [
-      { "attempt": 0, "status": "failed" },
+      {
+        "attempt": 0,
+        "status": "failed",
+        "errorHead": "Timed out 10000ms waiting for expect(locator).toHaveCount(5)\n\nLocator: getByTestId('filter-option')\nExpected: 5\nReceived: 2"
+      },
       { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
@@ -21,5 +25,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 14, "totalRuns": 45 },
   "humanClass": "ENV_ISSUE",
   "boundaryType": "cascading-env",
-  "note": "An empty filter panel reads like a broken empty-state or a data bug, but failedRequests shows the filters-config endpoint returning 500 on every attempt — the panel has nothing to render because its data source is down, not because the empty-state logic misfires. A roughly 31% recent failure rate confirms a flapping backend dependency, not a stable UI defect."
+  "note": "An empty filter panel reads like a broken empty-state or a data bug, and the two attempts even land on different received counts (2, then 0) — the kind of instability the flaky-as-real-bug cases in this dataset use as evidence for a race. But failedRequests shows the filters-config endpoint returning 500 on the reported attempt, and the varying partial count is consistent with a backend flapping between partially answering and failing outright, not with a client-side rendering race: the panel has nothing reliable to render because its data source itself is unstable, not because the empty-state logic misfires. Differing values across attempts point to a race only when there's no corresponding backend failure to explain them — here there is."
 }

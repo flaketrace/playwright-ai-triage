@@ -21,5 +21,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 11, "totalRuns": 42 },
   "humanClass": "ENV_ISSUE",
   "boundaryType": "cascading-env",
-  "note": "An empty comment thread reads like a broken empty state or an off-by-one query, but failedRequests shows the comments API request failing at the connection level (status 0, no HTTP response at all) rather than returning an empty list — the service was unreachable, not the UI mishandling a valid empty response. A roughly 26% recent failure rate matching a known-unstable comments microservice points to environment, not the thread-rendering logic."
+  "note": "An empty comment thread reads like a broken empty state or an off-by-one query, but failedRequests shows the comments API request failing at the connection level (status 0, no HTTP response at all) rather than returning an empty list — the service was unreachable, not the UI mishandling a valid empty response."
 }

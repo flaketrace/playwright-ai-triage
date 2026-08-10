@@ -21,5 +21,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 9, "totalRuns": 40 },
   "humanClass": "ENV_ISSUE",
   "boundaryType": "cascading-env",
-  "note": "A chart canvas that never renders looks like a client-side rendering bug — bad data silently crashing the chart library — but the weekly-analytics endpoint returned 503 on both attempts. The chart component correctly renders nothing because it never received data to draw. The 22.5% historical rate tracks a known-flaky analytics service, not the chart component."
+  "note": "A chart canvas that never renders looks like a client-side rendering bug — bad data silently crashing the chart library — but failedRequests shows the weekly-analytics endpoint returning 503 on the reported attempt. The chart component correctly renders nothing because it never received data to draw, not because it mishandled data it did receive."
 }
