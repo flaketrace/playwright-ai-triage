@@ -27,6 +27,7 @@ const goldenCase = (id: string, humanClass: GoldenCase['humanClass']): GoldenCas
   humanClass,
   boundaryType: 'other',
   note: `test fixture ${id}`,
+  synthetic: true,
 });
 
 function clientAlwaysReturns(

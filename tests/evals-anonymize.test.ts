@@ -25,6 +25,7 @@ const rawCase = (): GoldenCase =>
     humanClass: 'REAL_BUG',
     boundaryType: 'flaky-as-real-bug',
     note: 'Looked like a real assertion failure but reporter@example-corp.com confirmed a race.',
+    synthetic: false,
   }) as GoldenCase;
 
 describe('redactText', () => {
