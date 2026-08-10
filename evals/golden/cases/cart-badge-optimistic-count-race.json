@@ -1,0 +1,22 @@
+{
+  "id": "cart-badge-optimistic-count-race",
+  "synthetic": true,
+  "payload": {
+    "testId": "cart-1",
+    "title": "cart badge count updates after adding an item",
+    "file": "tests/cart/add-to-cart.spec.ts",
+    "line": 33,
+    "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('cart-count-badge')\nExpected: \"3\"\nReceived: \"2\"",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "passed" }
+    ],
+    "retryThenPassed": true,
+    "duration": 1800
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 7, "totalRuns": 40 },
+  "humanClass": "FLAKY",
+  "boundaryType": "flaky-as-real-bug",
+  "note": "A badge showing one less than expected reads like an off-by-one cart bug, but the UI optimistically increments the badge locally then reconciles against the server's cart-total response; the assertion sometimes fires between the optimistic paint and the reconcile. Retried-then-passed plus a meaningfully high 17.5% historical rate confined to this one assertion (not the whole cart flow) point to a UI-only race, not a broken increment."
+}

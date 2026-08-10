@@ -1,0 +1,22 @@
+{
+  "id": "login-stale-username-race",
+  "synthetic": true,
+  "payload": {
+    "testId": "auth-1",
+    "title": "welcome banner shows the correct signed-in user's name",
+    "file": "tests/auth/login.spec.ts",
+    "line": 27,
+    "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('welcome-banner')\nExpected: \"Welcome, Priya\"\nReceived: \"Welcome, Alex\"",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "passed" }
+    ],
+    "retryThenPassed": true,
+    "duration": 3100
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 5, "totalRuns": 45 },
+  "humanClass": "FLAKY",
+  "boundaryType": "flaky-as-real-bug",
+  "note": "A wrong username in a welcome banner reads like a serious session-mixup bug, not a flake. But retried-and-passed plus a low, steady historical rate across 45 runs point to a client-side session-cache read racing the fresh-login response — the previous test worker's cached user object is read once before the new session settles, then self-corrects. A one-shot read alone would call this REAL_BUG and could trigger a false security-adjacent alarm."
+}
