@@ -1,0 +1,22 @@
+{
+  "id": "upload-progress-bar-component-swap",
+  "synthetic": true,
+  "payload": {
+    "testId": "upload-1",
+    "title": "upload progress bar appears while a file uploads",
+    "file": "tests/upload/file-upload.spec.ts",
+    "line": 40,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByTestId('upload-progress-bar')\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "duration": 10100
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 42 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "Reads like the classic 'waited for an async thing that hasn't happened yet' flake, but the upload widget was swapped for a different vendor component during a recent dependency bump, and the new component doesn't expose a matching test-id at all. Zero prior failures and an identical not-found on both retries rule out timing; the old locator's target no longer exists in the DOM."
+}

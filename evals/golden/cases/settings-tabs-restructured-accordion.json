@@ -1,0 +1,22 @@
+{
+  "id": "settings-tabs-restructured-accordion",
+  "synthetic": true,
+  "payload": {
+    "testId": "settings-1",
+    "title": "notifications settings tab opens",
+    "file": "tests/settings/tabs.spec.ts",
+    "line": 22,
+    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByRole('tab', { name: 'Notifications' })\nExpected: visible\nReceived: <element(s) not found>",
+    "stack": "",
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      { "attempt": 1, "status": "failed" }
+    ],
+    "retryThenPassed": false,
+    "duration": 10200
+  },
+  "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 38 },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "drift-as-flaky",
+  "note": "Consistent not-found across both attempts with zero prior history — but settings recently moved from a tab strip to a collapsible accordion, so a role of 'tab' no longer exists on that page at all; there is no timing element to be flaky about. This is distinguished from a true flake by the failure being structural (the element's role was removed) rather than transient."
+}
