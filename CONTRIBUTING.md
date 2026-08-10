@@ -34,9 +34,10 @@ npm run gate
 ## `ADR-NNNN` in source comments
 
 Two decision records are cited by number in source comments (`ADR-0003`, `ADR-0012`). Those records are
-the maintainer's private design notes and are not in this repository — there is no `docs/adr/`,
-and searching for one is a dead end. Treat each citation as a provenance marker rather than a
-link. Most spell out the rule they justify at the citation site; two do not (today
+the maintainer's private design notes and are not in this repository — searching [`docs/adr/`](docs/adr/)
+for them is a dead end; that directory holds a separate, unrelated `ADR-NNN` sequence documenting
+already-implemented decisions, not these two. Treat each `ADR-0003`/`ADR-0012` citation as a
+provenance marker rather than a link. Most spell out the rule they justify at the citation site; two do not (today
 `src/config.ts`'s default-model alias and `src/classify.ts`'s cached price table), and there the
 number is the whole of the reference — ask rather than infer. New citations should carry their
 rule inline.

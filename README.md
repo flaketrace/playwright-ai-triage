@@ -32,7 +32,9 @@ judge is allowed to see is enumerated (see [What data is sent where](#what-data-
 and the prompt is versioned and evaluated like any other piece of logic that changes
 behavior — [`CONTRIBUTING.md`](CONTRIBUTING.md) requires eval evidence, not intuition,
 before a prompt change merges. See [How much to trust this](#how-much-to-trust-this) below
-for what "evaluated" means in practice and what the judge still gets wrong.
+for what "evaluated" means in practice and what the judge still gets wrong, and
+[`docs/adr/`](docs/adr/) for why the taxonomy, the LLM-vs-heuristics split, and the reliability
+measurement itself are shaped the way they are.
 
 Self-hosted by design: you bring your own Anthropic API key, and your test results are processed
 inside your own CI. There is no hosted platform behind this package. Failure text is sent to two
