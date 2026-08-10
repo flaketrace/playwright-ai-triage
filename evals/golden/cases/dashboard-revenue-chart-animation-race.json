@@ -9,12 +9,12 @@
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('revenue-total')\nExpected: \"$128,400\"\nReceived: \"$114,900\"",
     "stack": "",
     "retries": [
-      { "attempt": 0, "status": "failed" },
       {
-        "attempt": 1,
+        "attempt": 0,
         "status": "failed",
         "errorHead": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('revenue-total')\nExpected: \"$128,400\"\nReceived: \"$121,700\""
-      }
+      },
+      { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
     "duration": 2600
@@ -22,5 +22,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 4, "totalRuns": 50 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "A specific wrong dollar figure reads like a calculation bug, but the two failed attempts land on two different wrong totals — $114,900, then $121,700 — not the same wrong number repeating. A genuine calculation bug would compute the same incorrect total deterministically every run; landing on a different wrong figure each attempt matches the chart library's roughly 800ms count-up animation being sampled at a different offset each time the assertion fires, not a broken total."
+  "note": "A specific wrong dollar figure reads like a calculation bug, but the two failed attempts land on two different wrong totals — $121,700 on the first attempt, $114,900 on the reported one — not the same wrong number repeating. A genuine calculation bug would compute the same incorrect total deterministically every run; landing on a different wrong figure each attempt matches the chart library's roughly 800ms count-up animation being sampled at a different offset each time the assertion fires, not a broken total."
 }

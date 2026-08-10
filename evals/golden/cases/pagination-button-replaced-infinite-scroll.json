@@ -18,5 +18,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 36 },
   "humanClass": "SELECTOR_DRIFT",
   "boundaryType": "drift-as-flaky",
-  "note": "Superficially a timeout-shaped flake, but the results list was redesigned to infinite scroll and the 'Next page' button was removed entirely — not hidden, not slow to render, just gone. Consistent not-found on both attempts with zero prior history is the signature of a UI redesign outrunning the test suite, not variance."
+  "note": "Superficially a timeout-shaped flake, but the results list was redesigned to infinite scroll and the 'Next page' button was removed entirely — not hidden, not slow to render, just gone. Both attempts report the identical not-found failure, with neither attempt showing a different symptom than the other — the signature of a UI redesign outrunning the test suite, not variance."
 }

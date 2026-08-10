@@ -18,5 +18,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 42 },
   "humanClass": "SELECTOR_DRIFT",
   "boundaryType": "drift-as-flaky",
-  "note": "Reads like the classic 'waited for an async thing that hasn't happened yet' flake, but the upload widget was swapped for a different vendor component during a recent dependency bump, and the new component doesn't expose a matching test-id at all. Zero prior failures and an identical not-found on both retries rule out timing; the old locator's target no longer exists in the DOM."
+  "note": "Reads like the classic 'waited for an async thing that hasn't happened yet' flake, but both attempts report the identical 'element(s) not found' failure with nothing distinguishing one attempt from the other — no divergence in the failure shape the way a genuine timing race would show. The upload widget was swapped for a different vendor component during a recent dependency bump, and the new component doesn't expose a matching test-id at all; the old locator's target no longer exists in the DOM."
 }

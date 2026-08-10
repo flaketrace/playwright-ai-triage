@@ -9,12 +9,12 @@
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('welcome-banner')\nExpected: \"Welcome, Priya\"\nReceived: \"Welcome, Alex\"",
     "stack": "",
     "retries": [
-      { "attempt": 0, "status": "failed" },
       {
-        "attempt": 1,
+        "attempt": 0,
         "status": "failed",
         "errorHead": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('welcome-banner')\nExpected: \"Welcome, Priya\"\nReceived: \"Welcome, Sam\""
-      }
+      },
+      { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
     "duration": 3100
@@ -22,5 +22,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 5, "totalRuns": 45 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "A wrong username in a welcome banner reads like a serious session-mixup bug, not a flake. But the two failed attempts land on two different wrong names — 'Alex', then 'Sam' — not the same wrong value repeating. A genuine session-mixup bug would consistently surface whichever specific stale session got cached, the same wrong name every attempt; landing on a different wrong name each time is the signature of a client-side session-cache read racing the fresh-login response and picking up whatever test worker's leftover session happens to be resident at that instant, not a deterministic defect. A one-shot read alone would call this REAL_BUG and could trigger a false security-adjacent alarm."
+  "note": "A wrong username in a welcome banner reads like a serious session-mixup bug, not a flake. But the two failed attempts land on two different wrong names — 'Sam' on the first attempt, 'Alex' on the reported one — not the same wrong value repeating. A genuine session-mixup bug would consistently surface whichever specific stale session got cached, the same wrong name every attempt; landing on a different wrong name each time is the signature of a client-side session-cache read racing the fresh-login response and picking up whatever test worker's leftover session happens to be resident at that instant, not a deterministic defect. A one-shot read alone would call this REAL_BUG and could trigger a false security-adjacent alarm."
 }

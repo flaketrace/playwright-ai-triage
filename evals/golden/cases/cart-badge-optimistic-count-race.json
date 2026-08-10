@@ -9,12 +9,12 @@
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('cart-count-badge')\nExpected: \"3\"\nReceived: \"2\"",
     "stack": "",
     "retries": [
-      { "attempt": 0, "status": "failed" },
       {
-        "attempt": 1,
+        "attempt": 0,
         "status": "failed",
         "errorHead": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('cart-count-badge')\nExpected: \"3\"\nReceived: \"1\""
-      }
+      },
+      { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
     "duration": 1800
@@ -22,5 +22,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 7, "totalRuns": 40 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "A badge showing one less than expected reads like an off-by-one cart bug, but the two failed attempts land on two different wrong counts — 2, then 1 — not the same wrong number repeating. A broken increment would fail on every add-to-cart with the same stale count once the code path is hit; landing on a different count each attempt matches the UI optimistically incrementing the badge locally then reconciling against the server's cart-total response, with the assertion catching a different point in that window each time — a UI-only race, not a broken increment."
+  "note": "A badge showing one less than expected reads like an off-by-one cart bug, but the two failed attempts land on two different wrong counts — 1 on the first attempt, 2 on the reported one — not the same wrong number repeating. A broken increment would fail on every add-to-cart with the same stale count once the code path is hit; landing on a different count each attempt matches the UI optimistically incrementing the badge locally then reconciling against the server's cart-total response, with the assertion catching a different point in that window each time — a UI-only race, not a broken increment."
 }

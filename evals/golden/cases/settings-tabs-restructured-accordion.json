@@ -18,5 +18,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 38 },
   "humanClass": "SELECTOR_DRIFT",
   "boundaryType": "drift-as-flaky",
-  "note": "Consistent not-found across both attempts with zero prior history — but settings recently moved from a tab strip to a collapsible accordion, so a role of 'tab' no longer exists on that page at all; there is no timing element to be flaky about. This is distinguished from a true flake by the failure being structural (the element's role was removed) rather than transient."
+  "note": "Both attempts fail identically on 'element(s) not found', not an intermittent visibility toggle, and neither attempt diverges from the other the way this dataset's flaky-as-real-bug cases do. Settings recently moved from a tab strip to a collapsible accordion, so a role of 'tab' no longer exists on that page at all; there is no timing element to be flaky about. This is distinguished from a true flake by the failure being structural (the element's role was removed) rather than transient."
 }
