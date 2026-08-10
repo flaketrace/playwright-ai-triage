@@ -63,6 +63,9 @@
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"
   },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@eslint/js": "^10.0.1",
