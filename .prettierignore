@@ -7,3 +7,6 @@ CHANGELOG.md
 # governance layer — human-owned prose and agent config, not format-enforced source
 .agentic/
 .claude/
+
+# superpowers plugin scratch state (gitignored, agent-generated)
+.superpowers/

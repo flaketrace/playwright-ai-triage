@@ -1,5 +1,6 @@
 {
   "id": "EXAMPLE-cascading-env",
+  "synthetic": true,
   "payload": {
     "testId": "example-3",
     "title": "EXAMPLE — search results render for a known query",

@@ -37,6 +37,11 @@ const historicalFailureRateSchema = z.object({
  * remaining fields are dataset-only context, never sent to the model. */
 export const goldenCaseSchema = z.object({
   id: z.string().min(1),
+  /** Whether this case is hand-authored/invented (true) or comes from a real,
+   * anonymized Playwright run (false). Required, not defaulted — provenance
+   * is exactly the fact this field exists to make explicit. See
+   * evals/README.md's "How cases are collected and labeled". */
+  synthetic: z.boolean(),
   payload: failurePayloadSchema,
   historicalFailureRate: historicalFailureRateSchema.optional(),
   screenshots: screenshotMetaSchema.optional(),

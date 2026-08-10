@@ -1,5 +1,6 @@
 {
   "id": "EXAMPLE-flaky-as-real-bug",
+  "synthetic": true,
   "payload": {
     "testId": "example-1",
     "title": "EXAMPLE — order total updates after adding a coupon",

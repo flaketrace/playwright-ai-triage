@@ -30,6 +30,7 @@ const validCase = (id: string): GoldenCase => ({
   humanClass: 'FLAKY',
   boundaryType: 'flaky-as-real-bug',
   note: 'Retried and passed on a later run despite a deterministic-looking assertion failure.',
+  synthetic: true,
 });
 
 let dir: string;
@@ -75,6 +76,17 @@ describe('goldenCaseSchema', () => {
   it('rejects an empty note', () => {
     const bad = { ...validCase('e'), note: '' };
     expect(goldenCaseSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('rejects a missing synthetic field', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { synthetic: _synthetic, ...bad } = validCase('h');
+    expect(goldenCaseSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('accepts synthetic: false for a real case', () => {
+    const real = { ...validCase('i'), synthetic: false };
+    expect(goldenCaseSchema.safeParse(real).success).toBe(true);
   });
 });
 

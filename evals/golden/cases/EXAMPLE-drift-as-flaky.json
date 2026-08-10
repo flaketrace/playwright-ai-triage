@@ -1,5 +1,6 @@
 {
   "id": "EXAMPLE-drift-as-flaky",
+  "synthetic": true,
   "payload": {
     "testId": "example-2",
     "title": "EXAMPLE — account menu opens from the header",
