@@ -6,14 +6,14 @@
     "title": "notifications settings tab opens",
     "file": "tests/settings/tabs.spec.ts",
     "line": 22,
-    "errorMessage": "Timed out 10000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByRole('tab', { name: 'Notifications' })\nExpected: visible\nReceived: <element(s) not found>",
+    "errorMessage": "Timed out 5000ms waiting for expect(locator).toBeVisible()\n\nLocator: getByRole('tab', { name: 'Notifications' })\nExpected: visible\nReceived: <element(s) not found>",
     "stack": "",
     "retries": [
       { "attempt": 0, "status": "failed" },
       { "attempt": 1, "status": "failed" }
     ],
     "retryThenPassed": false,
-    "duration": 10200
+    "duration": 5150
   },
   "historicalFailureRate": { "failedInLastNRuns": 0, "totalRuns": 38 },
   "humanClass": "SELECTOR_DRIFT",

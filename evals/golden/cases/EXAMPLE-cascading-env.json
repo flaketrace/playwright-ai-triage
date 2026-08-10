@@ -21,5 +21,5 @@
   "historicalFailureRate": { "failedInLastNRuns": 12, "totalRuns": 40 },
   "humanClass": "ENV_ISSUE",
   "boundaryType": "cascading-env",
-  "note": "EXAMPLE — not a real case, format illustration only. Zero results reads like an empty-state UI bug at first glance, but the trace's failedRequests shows the search API itself returned 503 — the UI never had data to render. A 30%-of-recent-runs failure rate confirms this tracks a flapping backend dependency, not the UI code under test."
+  "note": "EXAMPLE — not a real case, format illustration only. Zero results reads like an empty-state UI bug at first glance, but the trace's failedRequests shows the search API itself returned 503 — the UI never had data to render, not a broken empty-state path."
 }

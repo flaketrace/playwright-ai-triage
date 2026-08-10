@@ -13,7 +13,7 @@
     "failedRequests": [
       { "status": 404, "method": "POST", "url": "https://example.test/api/analytics/beacon" }
     ],
-    "duration": 5200
+    "duration": 10300
   },
   "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 44 },
   "humanClass": "FLAKY",
