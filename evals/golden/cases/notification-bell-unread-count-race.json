@@ -8,12 +8,19 @@
     "line": 61,
     "errorMessage": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('unread-count')\nExpected: \"1\"\nReceived: \"0\"",
     "stack": "",
-    "retries": [{ "attempt": 0, "status": "failed" }],
+    "retries": [
+      { "attempt": 0, "status": "failed" },
+      {
+        "attempt": 1,
+        "status": "failed",
+        "errorHead": "expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('unread-count')\nExpected: \"1\"\nReceived: \"2\""
+      }
+    ],
     "retryThenPassed": false,
     "duration": 4400
   },
   "historicalFailureRate": { "failedInLastNRuns": 6, "totalRuns": 48 },
   "humanClass": "FLAKY",
   "boundaryType": "flaky-as-real-bug",
-  "note": "An unread count stuck at 0 looks like the notification never registered — a real bug — and this run recorded one failure, with no retry evidence either way. But the badge is driven by two independent sources: an initial REST fetch on page load and a websocket push for new events; when the push arrives before the initial fetch resolves, the fetch's response briefly overwrites the pushed count with a stale 0 before self-correcting. A steady ~12.5% historical rate confined to page-load-adjacent assertions — intermittent, not zero, not dominant — doesn't match a lost-notification bug, which would reproduce whenever the same trigger fires; it matches a load-order race instead."
+  "note": "An unread count stuck at 0 looks like the notification never registered — a real bug. But the two failed attempts land on two different wrong counts — 0, then 2 — not a stable undercount repeating. A lost-notification bug would show the same missing-notification shape every attempt; landing on an overcount on retry is inconsistent with a notification that never arrived, and instead matches a load-order race between an initial REST fetch on page load and a websocket push for new events, with the assertion catching a different relative ordering of the two sources each time."
 }
