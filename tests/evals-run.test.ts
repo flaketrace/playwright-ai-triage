@@ -214,6 +214,8 @@ describe('runGoldenEval', () => {
       log: (m) => logs.push(m),
     });
     expect(code).toBe(0);
-    expect(logs.join('\n')).toMatch(/1\/1 graded cases are synthetic \(0 real\)/);
+    expect(logs.join('\n')).toMatch(
+      /1\/1 graded cases are synthetic \(0 real\) — see evals\/README\.md's "How cases are collected and labeled"/,
+    );
   });
 });

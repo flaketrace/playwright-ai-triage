@@ -110,7 +110,7 @@ export function formatGoldenReport(report: GoldenEvalReport, asJson: boolean): s
   if (graded > 0) {
     lines.push(
       `${report.syntheticGraded}/${graded} graded cases are synthetic (${report.realGraded} real)` +
-        ' — see README.md\'s "How much to trust this" section for what that means.',
+        ' — see evals/README.md\'s "How cases are collected and labeled" for what that means.',
     );
     lines.push('');
   }
