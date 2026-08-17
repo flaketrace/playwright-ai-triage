@@ -1,0 +1,33 @@
+{
+  "id": "combobox-strict-mode-native-select-collision",
+  "synthetic": true,
+  "payload": {
+    "testId": "relpick-1",
+    "title": "clicking a suggestion selects it and enables submit",
+    "file": "tests/character/relationship-picker.spec.ts",
+    "line": 39,
+    "errorMessage": "locator.waitFor: Error: strict mode violation: getByRole('combobox') resolved to 2 elements:\n    1) <input value=\"\" type=\"text\" role=\"combobox\" class=\"ae-input\" aria-controls=\"rel-picker-listbox\" aria-labelledby=\"rel-picker-label\"/> aka getByRole('combobox', { name: 'Character' })\n    2) <select name=\"rel_group\" class=\"ae-select\">…</select> aka getByLabel('Grouping')\n\nCall log:\n  - waiting for getByRole('combobox') to be visible",
+    "stack": "",
+    "retries": [
+      {
+        "attempt": 0,
+        "status": "failed"
+      },
+      {
+        "attempt": 1,
+        "status": "failed"
+      }
+    ],
+    "retryThenPassed": false,
+    "domSnippet": "combobox \"Character\" [ref=e40]\ncombobox \"Grouping\" [ref=e41]",
+    "diffSummary": "",
+    "duration": 720
+  },
+  "historicalFailureRate": {
+    "failedInLastNRuns": 0,
+    "totalRuns": 12
+  },
+  "humanClass": "SELECTOR_DRIFT",
+  "boundaryType": "other",
+  "note": "Modeled on a live misclassification: the judge called this REAL_BUG on one run and SELECTOR_DRIFT — correctly — on another run of the identical test the same night. A strict-mode 'resolved to N elements' error is a distinct failure signature from the timeout/absence shape the existing ambiguity rules (1-3) cover, and the taxonomy had no guidance for it. The two elements here are a text input (the intended autocomplete) and a native <select>, which the accessibility tree assigns an IMPLICIT 'combobox' role by spec — not a UI defect, not a renamed/duplicated element, just an under-scoped locator. domSnippet shows both are legitimate, differently-purposed controls (distinct accessible names 'Character' vs 'Grouping'), which is the tell that this is a selector-scoping problem: the fix is naming the locator (getByRole('combobox', { name: 'Character' })), not app code. This case exists to test whether the judge treats a multi-match strict-mode violation as ambiguous-until-shown-otherwise the same way it already treats absence."
+}
