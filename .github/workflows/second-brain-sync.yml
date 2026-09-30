@@ -76,7 +76,7 @@ jobs:
         if: steps.secrets.outputs.ok == 'true' && contains(fromJSON('["KNOWLEDGE_ENTRY","KNOWLEDGE_GAPS"]'), steps.generate.outputs.result)
         uses: actions/checkout@v7
         with:
-          repository: Jarroslav/second-brain
+          repository: kinnister/second-brain
           # ssh-key, NOT token: a deploy key is an SSH private key, and handing it
           # to the REST API as an HTTP token is exactly what "Bad credentials" means.
           # checkout writes the key under RUNNER_TEMP and persists `core.sshCommand`
